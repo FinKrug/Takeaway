@@ -22,6 +22,7 @@ defmodule Takeaway.Application do
       Takeaway.Elasticsearch.ClusterSetup,
       Takeaway.Elasticsearch.QuestionSync,
       Takeaway.Questions.GroupWorker,
+      Takeaway.Questions.TagWorker,
       # Background slide text extraction (Takeaway.Slides.extract_async/1).
       {Task.Supervisor, name: Takeaway.Slides.TaskSupervisor},
       # Start a worker by calling: Takeaway.Worker.start_link(arg)

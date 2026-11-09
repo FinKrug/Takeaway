@@ -350,6 +350,19 @@ defmodule TakeawayWeb.JoinLiveTest do
       assert has_element?(lv, "#questions-empty")
     end
 
+    test "tag enrichment updates the question chip without duplicating or resurrecting it",
+         %{conn: conn, speech: speech, attendee: a} do
+      q = ask(speech, a, "How does consensus work?")
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      tagged = %{q | tag: "Slide 4 · 12:34"}
+      send(lv.pid, {:question_tagged, tagged})
+      assert has_element?(lv, "#question-#{q.id}", "Slide 4 · 12:34")
+      assert has_element?(lv, "#my-question-count", "1")
+      lv |> element("#retract-question-#{q.id}") |> render_click()
+      send(lv.pid, {:question_tagged, tagged})
+      refute has_element?(lv, "#question-#{q.id}")
+    end
+
     test "verbal questions appear and can't be retracted", %{conn: conn, speech: speech} do
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
 

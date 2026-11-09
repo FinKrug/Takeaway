@@ -6,6 +6,11 @@ defmodule Takeaway.Questions.Question do
     field :text, :string
     field :offset_ms, :integer, default: 0
     field :slide_number, :integer
+    field :context_offset_ms, :integer
+    field :tag, :string
+    field :context_source, :string
+    field :slide_source, :string
+    belongs_to :context_segment, Takeaway.Speeches.TranscriptSegment
     field :group_id, :integer
     field :retracted_at, :utc_datetime
     # set when the speaker responds (see `Takeaway.Questions.mark_answered_by_segments/1`)

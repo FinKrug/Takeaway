@@ -206,6 +206,13 @@ defmodule TakeawayWeb.SpeakerLive do
   def handle_info({:question_retracted, q}, socket),
     do: {:noreply, stream_delete(socket, :questions, q)}
 
+  def handle_info({:question_tagged, q}, socket) do
+    case Questions.get_question(q.id) do
+      %{retracted_at: nil} = current -> {:noreply, stream_insert(socket, :questions, current)}
+      _ -> {:noreply, socket}
+    end
+  end
+
   # Other speech events (e.g. `{:question_answered, q}`) aren't shown here yet.
   def handle_info(_msg, socket), do: {:noreply, socket}
 
@@ -220,8 +227,9 @@ defmodule TakeawayWeb.SpeakerLive do
         {@question.text}
       </p>
       <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
-        <span class="font-mono tabular-nums">{format_ms(@question.offset_ms)}</span>
-        <.badge :if={@question.slide_number} tone="outline">Slide {@question.slide_number}</.badge>
+        <.badge tone="outline">
+          {@question.tag || Takeaway.Questions.Tagging.label(@question.slide_number, @question.offset_ms)}
+        </.badge>
         <.badge :if={@question.source == "verbal"} tone="brand">
           <.icon name="hero-microphone" class="size-3" /> Spoken
         </.badge>

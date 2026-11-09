@@ -98,6 +98,13 @@ defmodule Takeaway.Transcripts do
         for seg <- segments, {:ok, row} <- [persist(artifact, seg, offset_ms)] do
           Indexer.index_segment(%{row | artifact: artifact})
           Phoenix.PubSub.broadcast(Takeaway.PubSub, topic(speech_id), {:transcript_segment, row})
+
+          Phoenix.PubSub.broadcast(
+            Takeaway.PubSub,
+            "transcripts:all",
+            {:transcript_recorded, speech_id, row}
+          )
+
           row
         end
 

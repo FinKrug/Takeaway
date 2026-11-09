@@ -49,3 +49,4 @@ config :takeaway, :elasticsearch, auto_setup: false, auto_sync: false
 
 config :takeaway, :indexer, Takeaway.Indexer.Noop
 config :takeaway, :question_grouping, false
+config :takeaway, :question_tagging, false

@@ -113,6 +113,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
              :question_created,
              :question_retracted,
              :question_groups_updated,
+             :question_tagged,
              :question_answered
            ] do
     {:noreply, refresh_groups(socket)}

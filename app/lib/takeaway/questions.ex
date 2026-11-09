@@ -68,6 +68,8 @@ defmodule Takeaway.Questions do
              "user_id" => user.id,
              "speech_id" => speech.id
            }) do
+      # Only local data is used here; Elasticsearch enrichment runs off the request path.
+      question = Takeaway.Questions.Tagging.attach_current(question, speech)
       broadcast(speech.id, {:question_created, question})
       {:ok, question}
     end
@@ -177,8 +179,11 @@ defmodule Takeaway.Questions do
                 "transcript_segment_id" => seg.id
               })
             ] do
-        broadcast(speech_id, {:question_created, q})
-        q
+        tagged =
+          Takeaway.Questions.Tagging.attach_current(q, Takeaway.Speeches.get_speech!(speech_id))
+
+        broadcast(speech_id, {:question_created, tagged})
+        tagged
       end
 
     {:ok, created}
