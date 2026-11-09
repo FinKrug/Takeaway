@@ -495,7 +495,7 @@ defmodule TakeawayWeb.CoreComponents do
           name={@name}
           value="true"
           checked={@checked}
-          class={@class || "size-5 rounded-md border-line accent-[var(--tk-brand)]"}
+          class={@class || "size-5 rounded-md border-control accent-[var(--tk-brand)]"}
           {@rest}
         /> {@label}
       </label>
@@ -589,7 +589,7 @@ defmodule TakeawayWeb.CoreComponents do
 
   # 16px text on phones stops iOS Safari from zooming into focused fields.
   defp field_classes do
-    "block w-full rounded-xl border border-line bg-surface px-3.5 text-base text-ink shadow-sm shadow-black/[0.02] " <>
+    "block w-full rounded-xl border border-control bg-surface px-3.5 text-base text-ink shadow-sm shadow-black/[0.02] " <>
       "placeholder:text-muted/70 transition-[border-color,box-shadow] duration-150 " <>
       "hover:border-ink/25 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15 " <>
       "disabled:cursor-not-allowed disabled:opacity-60 sm:text-[0.9375rem]"
@@ -603,7 +603,7 @@ defmodule TakeawayWeb.CoreComponents do
       <.live_file_input upload={@uploads.slides} class={file_input_class()} />
   """
   def file_input_class do
-    "block w-full cursor-pointer rounded-xl border border-dashed border-line bg-surface p-2 text-sm text-muted " <>
+    "block w-full cursor-pointer rounded-xl border border-dashed border-control bg-surface p-2 text-sm text-muted " <>
       "transition-colors hover:border-brand/50 " <>
       "file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-brand-soft file:px-3 file:py-2 " <>
       "file:text-sm file:font-semibold file:text-brand-strong"
