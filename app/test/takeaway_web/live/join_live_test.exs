@@ -24,6 +24,50 @@ defmodule TakeawayWeb.JoinLiveTest do
     q
   end
 
+  describe "live captions" do
+    test "hidden until the speech starts, then shows transcript live, gone at end",
+         %{conn: conn, speech: speech} do
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      refute has_element?(lv, "#live-captions")
+
+      {:ok, started} = SpeechCreator.start_speech(speech)
+      send(lv.pid, {:speech_started, started})
+      assert has_element?(lv, "#live-captions-log[role=log]")
+      assert has_element?(lv, "#captions-empty")
+
+      {:ok, _} =
+        Takeaway.Transcripts.record_segments(speech.id, [
+          %{text: "hello captions", start_ms: 0, end_ms: 1000}
+        ])
+
+      assert has_element?(lv, "#captions li", "hello captions")
+
+      {:ok, _} = SpeechCreator.end_speech(started)
+      refute has_element?(lv, "#live-captions")
+    end
+
+    test "late joiner sees earlier segments", %{conn: conn, speech: speech} do
+      {:ok, speech} = SpeechCreator.start_speech(speech)
+
+      {:ok, _} =
+        Takeaway.Transcripts.record_segments(speech.id, [
+          %{text: "earlier words", start_ms: 0, end_ms: 1000}
+        ])
+
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      assert has_element?(lv, "#captions li", "earlier words")
+    end
+  end
+
+  test "logo without wordmark has an accessible name" do
+    html =
+      Phoenix.LiveViewTest.rendered_to_string(
+        TakeawayWeb.CoreComponents.logo(%{class: "h-5", wordmark: false})
+      )
+
+    assert html =~ ~s(aria-label="takeaway")
+  end
+
   describe "waiting room" do
     test "notes open, questions closed until the speech starts, then live without reload",
          %{conn: conn, speech: speech} do
