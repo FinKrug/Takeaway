@@ -360,7 +360,9 @@ counts each status.
 The account strip at the top of every page (`#account-nav` in `root.html.heex`, entries
 from `Layouts.account_identity/1`) shows a role badge (Organizer, Speaker or Attendee), the
 name, a link to that role's home page and its log-out link. An organizer signed in as a
-speaker or attendee too gets one entry per role. Logged out, it shows Log in and Sign up.
+speaker or attendee too gets one entry per role; each Log out ends only that role
+(`UserAuth.log_out/1` and `OrganizerAuth.log_out/1` renew the session and delete only their own
+key). Logged out, it shows Log in and Sign up.
 
 ## JavaScript hooks
 

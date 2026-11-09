@@ -24,8 +24,16 @@ defmodule TakeawayWeb.OrganizerAuth do
     |> redirect(to: safe_path(return_to) || ~p"/organizers")
   end
 
+  @doc """
+  Logs out this role only: a new session id, without :organizer_id. Someone also signed in as
+  a speaker or attendee stays signed in as that.
+  """
   def log_out(conn) do
-    conn |> configure_session(drop: true) |> redirect(to: ~p"/")
+    conn
+    |> configure_session(renew: true)
+    |> delete_session(:organizer_id)
+    |> delete_session(:organizer_return_to)
+    |> redirect(to: ~p"/")
   end
 
   @doc "Plug: assigns `:current_organizer` (or nil) from the session."

@@ -29,8 +29,16 @@ defmodule TakeawayWeb.UserAuth do
     |> redirect(to: OrganizerAuth.safe_path(return_to) || home_path(user))
   end
 
+  @doc """
+  Logs out this role only: a new session id, without :user_id. Someone also signed in as
+  an organizer stays signed in as that.
+  """
   def log_out(conn) do
-    conn |> configure_session(drop: true) |> redirect(to: ~p"/")
+    conn
+    |> configure_session(renew: true)
+    |> delete_session(:user_id)
+    |> delete_session(:user_return_to)
+    |> redirect(to: ~p"/")
   end
 
   def home_path(%{role: "speaker"}), do: ~p"/speaker"
