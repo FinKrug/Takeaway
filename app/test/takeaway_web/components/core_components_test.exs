@@ -8,6 +8,41 @@ defmodule TakeawayWeb.CoreComponentsTest do
   defp query(html, selector), do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
   defp has?(html, selector), do: query(html, selector) |> Enum.count() > 0
 
+  describe "input/1 accessibility" do
+    test "links errors and hints with aria-describedby, marks required fields" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <.input id="f" name="f" value="" label="Title" hint="Help" errors={["can't be blank"]} required />
+        """)
+
+      assert has?(html, "input#f[aria-invalid='true'][aria-required='true']")
+      assert has?(html, "input#f[aria-describedby='f-hint f-error-0']")
+      assert has?(html, "p#f-error-0[role='alert']")
+      assert has?(html, "p#f-hint")
+      assert has?(html, "label span[aria-hidden='true']")
+    end
+
+    test "no aria-describedby or invalid flag on a clean optional field" do
+      assigns = %{}
+      html = rendered_to_string(~H|<.input id="g" name="g" value="" label="Name" />|)
+
+      refute has?(html, "input#g[aria-describedby]")
+      refute has?(html, "input#g[aria-invalid]")
+      refute has?(html, "label span[aria-hidden='true']")
+    end
+
+    test "icons are hidden from assistive tech" do
+      assigns = %{}
+
+      assert has?(
+               rendered_to_string(~H|<.icon name="hero-x-mark" />|),
+               "span[aria-hidden='true']"
+             )
+    end
+  end
+
   describe "button/1" do
     test "renders a <button> with the variant's colors and keeps extra classes" do
       assigns = %{}

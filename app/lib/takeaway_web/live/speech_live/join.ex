@@ -558,6 +558,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
                   field={@note_form[:body]}
                   id="note-body"
                   type="textarea"
+                  label="Your notes"
+                  aria-describedby="note-help note-status"
                   rows="10"
                   phx-debounce="1000"
                   maxlength={Note.max_length()}
@@ -565,7 +567,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
                   placeholder="Jot down what you want to remember..."
                 />
                 <div class="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
-                  <span>Only you can see your notes.</span>
+                  <span id="note-help">Only you can see your notes.</span>
                   <span id="note-status" class="shrink-0" aria-live="polite">
                     <span class="hidden items-center gap-1.5 phx-change-loading:inline-flex">
                       <.spinner class="size-3" /> Saving...
@@ -631,6 +633,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
                     label="Ask the speaker"
                     maxlength={max_question_length()}
                     placeholder="What would you like to know?"
+                    required
                   />
                   <div class="grid grid-cols-[6.5rem_1fr] items-end gap-3">
                     <.input
@@ -692,6 +695,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
                         id={"retract-question-#{item.id}"}
                         phx-click="retract"
                         phx-value-id={item.id}
+                        aria-label="Retract your question"
                         data-confirm="Retract this question?"
                         variant="ghost"
                         class="-my-2 ml-auto text-muted"

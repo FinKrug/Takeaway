@@ -496,13 +496,15 @@ defmodule TakeawayWeb.CoreComponents do
           value="true"
           checked={@checked}
           class={@class || "size-5 rounded-md border-line accent-[var(--tk-brand)]"}
+          aria-invalid={@errors != [] && "true"}
+          aria-describedby={describedby(@id, @errors, @hint)}
           {@rest}
         /> {@label}
       </label>
 
-      <.field_hint :if={@hint}>{@hint}</.field_hint>
+      <.field_hint :if={@hint} id={hint_id(@id)}>{@hint}</.field_hint>
 
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={{msg, i} <- Enum.with_index(@errors)} id={error_id(@id, i)}>{msg}</.error>
     </div>
     """
   end
@@ -511,7 +513,7 @@ defmodule TakeawayWeb.CoreComponents do
     ~H"""
     <div>
       <label for={@id} class="block">
-        <.field_label :if={@label}>{@label}</.field_label>
+        <.field_label :if={@label} required={required?(@rest)}>{@label}</.field_label>
 
         <select
           id={@id}
@@ -521,6 +523,9 @@ defmodule TakeawayWeb.CoreComponents do
             @errors != [] && (@error_class || field_error_classes())
           ]}
           multiple={@multiple}
+          aria-invalid={@errors != [] && "true"}
+          aria-required={required?(@rest) && "true"}
+          aria-describedby={describedby(@id, @errors, @hint)}
           {@rest}
         >
           <option :if={@prompt} value="">{@prompt}</option>
@@ -528,9 +533,9 @@ defmodule TakeawayWeb.CoreComponents do
         </select>
       </label>
 
-      <.field_hint :if={@hint}>{@hint}</.field_hint>
+      <.field_hint :if={@hint} id={hint_id(@id)}>{@hint}</.field_hint>
 
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={{msg, i} <- Enum.with_index(@errors)} id={error_id(@id, i)}>{msg}</.error>
     </div>
     """
   end
@@ -541,7 +546,7 @@ defmodule TakeawayWeb.CoreComponents do
     ~H"""
     <div>
       <label for={@id} class="block">
-        <.field_label :if={@label}>{@label}</.field_label>
+        <.field_label :if={@label} required={required?(@rest)}>{@label}</.field_label>
         <textarea
           id={@id}
           name={@name}
@@ -549,13 +554,16 @@ defmodule TakeawayWeb.CoreComponents do
             @class || [field_classes(), "min-h-24 resize-y py-3 leading-relaxed"],
             @errors != [] && (@error_class || field_error_classes())
           ]}
+          aria-invalid={@errors != [] && "true"}
+          aria-required={required?(@rest) && "true"}
+          aria-describedby={describedby(@id, @errors, @hint)}
           {@rest}
         >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
       </label>
 
-      <.field_hint :if={@hint}>{@hint}</.field_hint>
+      <.field_hint :if={@hint} id={hint_id(@id)}>{@hint}</.field_hint>
 
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={{msg, i} <- Enum.with_index(@errors)} id={error_id(@id, i)}>{msg}</.error>
     </div>
     """
   end
@@ -565,7 +573,7 @@ defmodule TakeawayWeb.CoreComponents do
     ~H"""
     <div>
       <label for={@id} class="block">
-        <.field_label :if={@label}>{@label}</.field_label>
+        <.field_label :if={@label} required={required?(@rest)}>{@label}</.field_label>
 
         <input
           type={@type}
@@ -576,13 +584,16 @@ defmodule TakeawayWeb.CoreComponents do
             @class || [field_classes(), "h-11"],
             @errors != [] && (@error_class || field_error_classes())
           ]}
+          aria-invalid={@errors != [] && "true"}
+          aria-required={required?(@rest) && "true"}
+          aria-describedby={describedby(@id, @errors, @hint)}
           {@rest}
         />
       </label>
 
-      <.field_hint :if={@hint}>{@hint}</.field_hint>
+      <.field_hint :if={@hint} id={hint_id(@id)}>{@hint}</.field_hint>
 
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.error :for={{msg, i} <- Enum.with_index(@errors)} id={error_id(@id, i)}>{msg}</.error>
     </div>
     """
   end
@@ -610,26 +621,45 @@ defmodule TakeawayWeb.CoreComponents do
   end
 
   @doc "A form label, for fields not rendered with `input/1` (for example file uploads)."
+  attr :required, :boolean, default: false
   slot :inner_block, required: true
 
   def field_label(assigns) do
     ~H"""
-    <span class="mb-1.5 block text-sm font-semibold text-ink">{render_slot(@inner_block)}</span>
+    <span class="mb-1.5 block text-sm font-semibold text-ink">
+      {render_slot(@inner_block)}<span :if={@required} aria-hidden="true" class="ml-0.5 text-danger">*</span>
+    </span>
     """
   end
 
+  defp required?(rest), do: rest[:required] in [true, "true", "required", ""]
+  defp hint_id(id), do: "#{id}-hint"
+  defp error_id(id, i), do: "#{id}-error-#{i}"
+
+  defp describedby(id, errors, hint) do
+    ids =
+      if(hint, do: [hint_id(id)], else: []) ++
+        Enum.map(Enum.with_index(errors), fn {_, i} -> error_id(id, i) end)
+
+    if ids == [], do: nil, else: Enum.join(ids, " ")
+  end
+
+  attr :id, :string, default: nil
   slot :inner_block, required: true
 
   defp field_hint(assigns) do
     ~H"""
-    <p class="mt-1.5 text-sm text-muted">{render_slot(@inner_block)}</p>
+    <p id={@id} class="mt-1.5 text-sm text-muted">{render_slot(@inner_block)}</p>
     """
   end
 
   # Helper used by inputs to generate form errors
+  attr :id, :string, default: nil
+  slot :inner_block, required: true
+
   defp error(assigns) do
     ~H"""
-    <p class="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-danger">
+    <p id={@id} role="alert" class="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-danger">
       <.icon name="hero-exclamation-circle-mini" class="size-4 shrink-0" /> {render_slot(@inner_block)}
     </p>
     """
@@ -762,7 +792,7 @@ defmodule TakeawayWeb.CoreComponents do
 
   def icon(%{name: "hero-" <> _} = assigns) do
     ~H"""
-    <span class={[@name, @class]} />
+    <span class={[@name, @class]} aria-hidden="true" />
     """
   end
 
