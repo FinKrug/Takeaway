@@ -13,6 +13,10 @@ defmodule TakeawayWeb.Router do
     plug :fetch_current_organizer
   end
 
+  pipeline :attendee do
+    plug TakeawayWeb.AttendeeSession
+  end
+
   pipeline :guest_only do
     plug :redirect_if_organizer
   end
@@ -33,6 +37,11 @@ defmodule TakeawayWeb.Router do
     get "/", PageController, :home
     get "/join", PageController, :join
     get "/artifacts/:id", ArtifactController, :show
+  end
+
+  # Attendee page: the plug gives each attendee an anonymous identity in the session.
+  scope "/", TakeawayWeb do
+    pipe_through [:browser, :attendee]
 
     live "/join/:code", SpeechLive.Join
   end
