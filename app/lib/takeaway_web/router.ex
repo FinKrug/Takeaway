@@ -24,6 +24,7 @@ defmodule TakeawayWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    live "/speeches/:id/speak", SpeakerLive
   end
 
   # Other scopes may use custom stacks.
