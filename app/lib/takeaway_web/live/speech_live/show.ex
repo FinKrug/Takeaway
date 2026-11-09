@@ -234,9 +234,16 @@ defmodule TakeawayWeb.SpeechLive.Show do
               type="text"
               readonly
               value={@invite_url}
-              onfocus="this.select()"
+              phx-hook=".SelectOnFocus"
               class="w-full rounded-xl border border-control bg-surface px-3 py-2 font-mono text-sm"
             />
+            <script :type={Phoenix.LiveView.ColocatedHook} name=".SelectOnFocus">
+              export default {
+                mounted() {
+                  this.el.addEventListener("focus", () => this.el.select())
+                }
+              }
+            </script>
           </div>
 
           <.button id="create-invite" phx-click="create-invite" variant="secondary" size="sm">
