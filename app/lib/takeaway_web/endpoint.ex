@@ -7,7 +7,7 @@ defmodule TakeawayWeb.Endpoint do
   @session_options [
     store: :cookie,
     key: "_takeaway_key",
-    signing_salt: "jF25f5de",
+    signing_salt: "c0zVKxkS",
     same_site: "Lax"
   ]
 
@@ -33,6 +33,7 @@ defmodule TakeawayWeb.Endpoint do
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
     plug Phoenix.LiveReloader
     plug Phoenix.CodeReloader
+    plug Phoenix.Ecto.CheckRepoStatus, otp_app: :takeaway
   end
 
   plug Phoenix.LiveDashboard.RequestLogger,

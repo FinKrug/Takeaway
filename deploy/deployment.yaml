@@ -16,6 +16,38 @@ spec:
       labels:
         app: app
     spec:
+      # Run Ecto migrations before the app starts. Until the database is up,
+      # this fails and Kubernetes retries it; the old pods keep serving.
+      initContainers:
+        - name: migrate
+          image: app
+          command: ["/app/bin/migrate"]
+          env:
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: app-credentials
+                  key: secret-key-base
+            # Made by the CloudNativePG operator for Cluster db (deploy/db.yaml).
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: uri
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: app
           image: app
@@ -23,6 +55,13 @@ spec:
             - name: http
               containerPort: 8080
           env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: uri
+            - name: POOL_SIZE
+              value: "5"
             - name: TEAM_NAME
               value: "takeaway"
             - name: PHX_HOST

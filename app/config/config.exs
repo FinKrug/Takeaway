@@ -8,6 +8,7 @@
 import Config
 
 config :takeaway,
+  ecto_repos: [Takeaway.Repo],
   generators: [timestamp_type: :utc_datetime]
 
 # Configure the endpoint
@@ -19,7 +20,7 @@ config :takeaway, TakeawayWeb.Endpoint,
     layout: false
   ],
   pubsub_server: Takeaway.PubSub,
-  live_view: [signing_salt: "eGcmZty5"]
+  live_view: [signing_salt: "ewRGLq6k"]
 
 # Configure LiveView
 config :phoenix_live_view,

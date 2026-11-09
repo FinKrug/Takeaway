@@ -9,6 +9,7 @@ defmodule Takeaway.Application do
   def start(_type, _args) do
     children = [
       TakeawayWeb.Telemetry,
+      Takeaway.Repo,
       {DNSCluster, query: Application.get_env(:takeaway, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Takeaway.PubSub},
       # Start a worker by calling: Takeaway.Worker.start_link(arg)

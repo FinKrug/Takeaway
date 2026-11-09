@@ -1,5 +1,15 @@
 import Config
 
+# Configure your database
+config :takeaway, Takeaway.Repo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  database: "takeaway_dev",
+  stacktrace: true,
+  show_sensitive_data_on_connection_error: true,
+  pool_size: 10
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #
@@ -13,7 +23,7 @@ config :takeaway, TakeawayWeb.Endpoint,
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
-  secret_key_base: "dXyUbVRCc6l5FQCg/u/j+fLw/pGGfDJKOaycvjhNa+Rr0QcXI0VOpQ3Smp8BGXWS",
+  secret_key_base: "VpFTzOqxpyi+Erwc0qdSV1LiYxyfs2PksHqJRHfNEDlDhXgp5XpkvQLJdg6/4NKq",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:takeaway, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:takeaway, ~w(--watch)]}
