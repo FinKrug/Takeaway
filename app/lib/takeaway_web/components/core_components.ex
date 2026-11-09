@@ -244,7 +244,7 @@ defmodule TakeawayWeb.CoreComponents do
           {render_slot(@actions)}
         </div>
       </div>
-       {render_slot(@inner_block)}
+      {render_slot(@inner_block)}
     </section>
     """
   end
@@ -524,7 +524,7 @@ defmodule TakeawayWeb.CoreComponents do
           {@rest}
         >
           <option :if={@prompt} value="">{@prompt}</option>
-           {Phoenix.HTML.Form.options_for_select(@options, @value)}
+          {Phoenix.HTML.Form.options_for_select(@options, @value)}
         </select>
       </label>
 
@@ -542,7 +542,7 @@ defmodule TakeawayWeb.CoreComponents do
     <div>
       <label for={@id} class="block">
         <.field_label :if={@label}>{@label}</.field_label>
-         <textarea
+        <textarea
           id={@id}
           name={@name}
           class={[

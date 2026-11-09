@@ -156,7 +156,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
         >
           <.icon name="hero-ticket-mini" class="size-4" /> Manage tickets
         </.button>
-         <.button href={~p"/organizers"} variant="ghost" size="sm">Your events</.button>
+        <.button href={~p"/organizers"} variant="ghost" size="sm">Your events</.button>
       </div>
 
       <.card :if={@artifacts != []} title="Materials" id="artifacts">
@@ -234,7 +234,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
             <ul class="space-y-2">
               <li :for={g <- @summary.content["question_groups"]} class="flex items-start gap-3">
                 <.badge tone="brand" class="mt-0.5 tabular-nums">{g["count"]}</.badge>
-                 <span>{g["label"]}</span>
+                <span>{g["label"]}</span>
               </li>
             </ul>
           </div>
@@ -253,7 +253,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
                 <span class="font-mono tabular-nums text-muted">
                   {format_ms(sp["start_ms"])} - {format_ms(sp["end_ms"])}
                 </span>
-                 <span>{sp["count"]} questions</span>
+                <span>{sp["count"]} questions</span>
               </li>
             </ul>
           </div>
