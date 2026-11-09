@@ -487,6 +487,10 @@ defmodule TakeawayWeb.SpeechLive.Join do
             Summaries are not included in this event's plan.
           </p>
 
+          <p id="summary-announcer" role="status" class="sr-only">
+            <span :if={@summary}>Your summary is ready.</span>
+          </p>
+
           <p
             :if={is_nil(@summary) and not @summary_locked}
             id="summary-loading"
