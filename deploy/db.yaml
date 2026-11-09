@@ -11,3 +11,9 @@ spec:
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: 500m, memory: 512Mi }
+  # One instance has no peers to fall back on, so the isolation check only
+  # restarts Postgres whenever the cluster's API server is slow (card 452).
+  probes:
+    liveness:
+      isolationCheck:
+        enabled: false
