@@ -62,6 +62,7 @@ config :phoenix, :json_library, Jason
 config :takeaway, :elasticsearch,
   url: "http://localhost:9200",
   api_key: nil
+
 # OpenTelemetry. Nothing is exported unless config/runtime.exs switches the
 # OTLP exporter on (DASH0_AUTH_TOKEN set). Kubernetes probe requests are never
 # traced (Takeaway.OtelSampler).
