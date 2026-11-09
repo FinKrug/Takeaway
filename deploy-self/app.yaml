@@ -12,10 +12,11 @@ spec:
       containers:
         - name: app
           env:
-            # LiveView only accepts sockets from this host. localhost works
-            # through the SSH tunnel; change it when the app gets a hostname.
+            # Public hostname (Apache on the server -> 127.0.0.1:8180, behind
+            # Cloudflare). LiveView only accepts sockets from this host, so the
+            # SSH tunnel (localhost:8180) no longer gets a live connection.
             - name: PHX_HOST
-              value: "localhost"
+              value: "take-away.dev"
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: "deployment.environment.name=self-hosted,k8s.namespace.name=team-takeaway,k8s.deployment.name=app,k8s.pod.name=$(K8S_POD_NAME),k8s.pod.uid=$(K8S_POD_UID)"
             - name: STT_MODEL

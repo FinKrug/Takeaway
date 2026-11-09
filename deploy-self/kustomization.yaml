@@ -6,7 +6,7 @@
 # every merge to main deploys to both clusters. Only what differs is patched
 # here: no Gateway (HTTPRoute removed), a localhost-only NodePort for the app,
 # a smaller footprint (the cluster is capped at 5 GiB on a shared server), and
-# PHX_HOST, which is localhost until the app gets a public hostname.
+# PHX_HOST (take-away.dev).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: team-takeaway
