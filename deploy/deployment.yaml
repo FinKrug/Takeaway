@@ -95,6 +95,13 @@ spec:
                   fieldPath: metadata.uid
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: "deployment.environment.name=hackathon,k8s.namespace.name=team-takeaway,k8s.deployment.name=app,k8s.pod.name=$(K8S_POD_NAME),k8s.pod.uid=$(K8S_POD_UID)"
+            # In-cluster Whisper small (deploy/whisper.yaml). Same namespace,
+            # so the short Service name resolves. No API key: speaches is open
+            # inside the cluster.
+            - name: STT_URL
+              value: http://whisper:8000/v1/audio/transcriptions
+            - name: STT_MODEL
+              value: Systran/faster-whisper-small
           resources:
             requests:
               cpu: 100m

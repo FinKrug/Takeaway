@@ -19,7 +19,7 @@ defmodule Takeaway.Questions do
   end
 
   @doc "PubSub topic for a speech's question events."
-  def topic(speech_id), do: "speech:#{speech_id}"
+  def topic(speech_id), do: "speech:#{speech_id}:questions"
 
   @doc "Global PubSub topic for all question events across speeches."
   def global_topic, do: "questions:all"
@@ -126,6 +126,80 @@ defmodule Takeaway.Questions do
       [aux, subj | _] when aux in @auxiliaries -> subj in @subjects
       _ -> false
     end
+  end
+
+  @doc """
+  Creates `source: "verbal"` questions from the speech's question-like transcript segments
+  (`Takeaway.Transcripts.list_question_segments/1`). Idempotent: a segment that already has
+  a question is skipped. Broadcasts `{:question_created, question}` for each new one and
+  returns `{:ok, new_questions}`.
+  """
+  def create_verbal_questions(speech_id) do
+    existing =
+      from(q in Question,
+        where: q.speech_id == ^speech_id and not is_nil(q.transcript_segment_id),
+        select: q.transcript_segment_id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
+    created =
+      for seg <- Takeaway.Transcripts.list_question_segments(speech_id),
+          seg.id not in existing,
+          {:ok, q} <-
+            [
+              create_question(%{
+                "text" => String.trim(seg.text),
+                "offset_ms" => seg.start_ms,
+                "source" => "verbal",
+                "speech_id" => speech_id,
+                "transcript_segment_id" => seg.id
+              })
+            ] do
+        broadcast(speech_id, {:question_created, q})
+        q
+      end
+
+    {:ok, created}
+  end
+
+  @doc """
+  Marks open verbal questions as answered once the speaker responds: a later transcript
+  segment that is not itself a question (`question?/1`), starts at or after the question's
+  segment ends, and is not by the same labelled speaker as the question. Already answered
+  or retracted questions are untouched. Broadcasts `{:question_answered, question}` for each
+  and returns `{:ok, answered_questions}`.
+  """
+  def mark_answered_by_segments(speech_id, now \\ now()) do
+    segments = Takeaway.Transcripts.list_segments(speech_id)
+
+    open =
+      from(q in Question,
+        where:
+          q.speech_id == ^speech_id and q.source == "verbal" and is_nil(q.answered_at) and
+            is_nil(q.retracted_at) and not is_nil(q.transcript_segment_id)
+      )
+      |> Repo.all()
+
+    answered =
+      for q <- open,
+          seg = Enum.find(segments, &(&1.id == q.transcript_segment_id)),
+          seg != nil,
+          response?(seg, segments),
+          {:ok, q} <- [q |> Ecto.Changeset.change(answered_at: now) |> Repo.update()] do
+        broadcast(speech_id, {:question_answered, q})
+        q
+      end
+
+    {:ok, answered}
+  end
+
+  defp response?(question_seg, segments) do
+    Enum.any?(segments, fn s ->
+      s.id != question_seg.id and s.start_ms >= question_seg.end_ms and
+        not question?(s.text) and
+        not (not is_nil(s.speaker) and s.speaker == question_seg.speaker)
+    end)
   end
 
   defp offset_ms(%Speech{started_at: nil}, _now), do: 0

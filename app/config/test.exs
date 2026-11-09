@@ -20,6 +20,9 @@ config :takeaway, TakeawayWeb.Endpoint,
   secret_key_base: "NLhhBx6AHTFLEMv9JUBXa+EO4hWn8t85D4JqItPWOl1SsORuP0rSFHUyRmMMCaR1",
   server: false
 
+# Cheap password hashing keeps the tests fast.
+config :takeaway, :pbkdf2_iterations, 1_000
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 
@@ -37,7 +40,5 @@ config :phoenix_live_view,
 config :phoenix,
   sort_verified_routes_query_params: true
 
-# Disable automatic background index bootstrapper and question sync, and use Noop indexer during tests
-config :takeaway, :elasticsearch, auto_setup: false, auto_sync: false
-
-config :takeaway, :indexer, Takeaway.Indexer.Noop
+# Disable automatic background index bootstrapper during tests
+config :takeaway, :elasticsearch, auto_setup: false

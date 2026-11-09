@@ -1,5 +1,6 @@
-/* See the Tailwind configuration guide for advanced usage
-   https://tailwindcss.com/docs/configuration */
+/* Takeaway UI. Hand-written Tailwind (v4) components live in
+   lib/takeaway_web/components/core_components.ex; this file holds the design
+   tokens they use. No daisyUI. See app/README.md, "UI kit". */
 
 @import "tailwindcss" source(none);
 @import "phoenix-colocated/takeaway/colocated.css";
@@ -13,82 +14,140 @@
    The heroicons installation itself is managed by your mix.exs */
 @plugin "../vendor/heroicons";
 
-/* daisyUI Tailwind Plugin. */
-@plugin "daisyui/packages/bundle/daisyui" {
-  themes: false;
+/* ---------------------------------------------------------------------------
+   Theme tokens. Utilities read CSS variables, so light/dark is one switch on
+   <html data-theme> (set before paint in root.html.heex).
+
+     surfaces:  bg-canvas (page), bg-surface (cards), bg-sunken (wells, inputs)
+     text:      text-ink (body), text-muted (secondary)
+     lines:     border-line
+     brand:     bg-brand / text-brand, bg-brand-strong (hover), bg-brand-soft (tint),
+                text-on-brand (text on bg-brand)
+     status:    success / danger / warning, each with a -soft tint
+     type:      font-sans (UI), font-display (headings), font-mono (codes)
+   ------------------------------------------------------------------------- */
+@theme inline {
+  --color-canvas: var(--tk-canvas);
+  --color-surface: var(--tk-surface);
+  --color-sunken: var(--tk-sunken);
+  --color-line: var(--tk-line);
+  --color-ink: var(--tk-ink);
+  --color-muted: var(--tk-muted);
+
+  --color-brand: var(--tk-brand);
+  --color-brand-strong: var(--tk-brand-strong);
+  --color-brand-soft: var(--tk-brand-soft);
+  --color-on-brand: var(--tk-on-brand);
+
+  --color-success: var(--tk-success);
+  --color-success-soft: var(--tk-success-soft);
+  --color-danger: var(--tk-danger);
+  --color-danger-soft: var(--tk-danger-soft);
+  --color-warning: var(--tk-warning);
+  --color-warning-soft: var(--tk-warning-soft);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Inter Display", "Inter", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --animate-enter: tk-enter 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-pop: tk-pop 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  @keyframes tk-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+
+  @keyframes tk-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
 }
 
-/* daisyUI theme plugin.
-  We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
-  on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
-@plugin "daisyui/packages/bundle/daisyui-theme" {
-  name: "dark";
-  default: false;
-  prefersdark: true;
-  color-scheme: "dark";
-  --color-base-100: oklch(30.33% 0.016 252.42);
-  --color-base-200: oklch(25.26% 0.014 253.1);
-  --color-base-300: oklch(20.15% 0.012 254.09);
-  --color-base-content: oklch(97.807% 0.029 256.847);
-  --color-primary: oklch(58% 0.233 277.117);
-  --color-primary-content: oklch(96% 0.018 272.314);
-  --color-secondary: oklch(58% 0.233 277.117);
-  --color-secondary-content: oklch(96% 0.018 272.314);
-  --color-accent: oklch(60% 0.25 292.717);
-  --color-accent-content: oklch(96% 0.016 293.756);
-  --color-neutral: oklch(37% 0.044 257.287);
-  --color-neutral-content: oklch(98% 0.003 247.858);
-  --color-info: oklch(58% 0.158 241.966);
-  --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(60% 0.118 184.704);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.21875rem;
-  --size-field: 0.21875rem;
-  --border: 1.5px;
-  --depth: 1;
-  --noise: 0;
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --tk-canvas: oklch(98.6% 0.004 75);
+  --tk-surface: oklch(100% 0 0);
+  --tk-sunken: oklch(96.4% 0.006 75);
+  --tk-line: oklch(91.5% 0.008 75);
+  --tk-ink: oklch(22% 0.018 265);
+  --tk-muted: oklch(52% 0.016 265);
+
+  --tk-brand: oklch(64% 0.19 38);
+  --tk-brand-strong: oklch(56% 0.18 36);
+  --tk-brand-soft: oklch(95.5% 0.03 45);
+  --tk-on-brand: oklch(99% 0.005 75);
+
+  --tk-success: oklch(55% 0.13 160);
+  --tk-success-soft: oklch(95.5% 0.035 160);
+  --tk-danger: oklch(56% 0.2 25);
+  --tk-danger-soft: oklch(95.5% 0.03 25);
+  --tk-warning: oklch(62% 0.15 70);
+  --tk-warning-soft: oklch(96% 0.045 85);
 }
 
-@plugin "daisyui/packages/bundle/daisyui-theme" {
-  name: "light";
-  default: true;
-  prefersdark: false;
-  color-scheme: "light";
-  --color-base-100: oklch(98% 0 0);
-  --color-base-200: oklch(96% 0.001 286.375);
-  --color-base-300: oklch(92% 0.004 286.32);
-  --color-base-content: oklch(21% 0.006 285.885);
-  --color-primary: oklch(70% 0.213 47.604);
-  --color-primary-content: oklch(98% 0.016 73.684);
-  --color-secondary: oklch(55% 0.027 264.364);
-  --color-secondary-content: oklch(98% 0.002 247.839);
-  --color-accent: oklch(0% 0 0);
-  --color-accent-content: oklch(100% 0 0);
-  --color-neutral: oklch(44% 0.017 285.786);
-  --color-neutral-content: oklch(98% 0 0);
-  --color-info: oklch(62% 0.214 259.815);
-  --color-info-content: oklch(97% 0.014 254.604);
-  --color-success: oklch(70% 0.14 182.503);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
-  --radius-selector: 0.25rem;
-  --radius-field: 0.25rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.21875rem;
-  --size-field: 0.21875rem;
-  --border: 1.5px;
-  --depth: 1;
-  --noise: 0;
+[data-theme="dark"] {
+  color-scheme: dark;
+  --tk-canvas: oklch(17.5% 0.012 265);
+  --tk-surface: oklch(21.5% 0.014 265);
+  --tk-sunken: oklch(15.5% 0.012 265);
+  --tk-line: oklch(30% 0.016 265);
+  --tk-ink: oklch(95% 0.006 265);
+  --tk-muted: oklch(70% 0.014 265);
+
+  --tk-brand: oklch(71% 0.17 42);
+  --tk-brand-strong: oklch(77% 0.15 46);
+  --tk-brand-soft: oklch(30% 0.06 40);
+  --tk-on-brand: oklch(18% 0.02 40);
+
+  --tk-success: oklch(74% 0.14 160);
+  --tk-success-soft: oklch(29% 0.05 160);
+  --tk-danger: oklch(70% 0.17 25);
+  --tk-danger-soft: oklch(29% 0.06 25);
+  --tk-warning: oklch(80% 0.14 80);
+  --tk-warning-soft: oklch(30% 0.05 80);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100dvh;
+    background-color: var(--tk-canvas);
+    color: var(--tk-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: var(--tk-brand-soft);
+    color: var(--tk-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--tk-brand);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
 }
 
 /* Add variants based on LiveView classes */
@@ -101,5 +160,3 @@
 
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
-
-/* This file is for your main application CSS */

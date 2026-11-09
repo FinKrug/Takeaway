@@ -107,4 +107,108 @@ defmodule Takeaway.QuestionsTest do
     assert {:ok, _} = Questions.retract_question_by(q.id, u)
     refute_receive {:question_retracted, _}
   end
+
+  test "typed questions default to source typed and need a user", %{speech: s, user: u} do
+    {:ok, q} = Questions.submit_question(s, u, %{"text" => "Why?"})
+    assert q.source == "typed"
+
+    assert {:error, cs} = Questions.create_question(%{text: "x", speech_id: s.id})
+    assert %{user_id: ["can't be blank"]} = errors_on(cs)
+
+    assert {:error, cs} =
+             Questions.create_question(%{
+               text: "x",
+               speech_id: s.id,
+               user_id: u.id,
+               source: "bogus"
+             })
+
+    assert %{source: [_]} = errors_on(cs)
+  end
+
+  test "recording a question segment creates a verbal question, idempotently", %{speech: s} do
+    {:ok, [_, seg]} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Welcome all", start_ms: 0, end_ms: 500},
+        %{text: "Does it scale?", start_ms: 500, end_ms: 900}
+      ])
+
+    assert [q] = Questions.list_questions(s.id)
+    assert {q.text, q.source, q.offset_ms, q.user_id} == {"Does it scale?", "verbal", 500, nil}
+    assert q.transcript_segment_id == seg.id
+    assert_receive {:question_created, %{id: id}}
+    assert id == q.id
+
+    assert {:ok, []} = Questions.create_verbal_questions(s.id)
+    assert [%{source: "verbal"}] = Questions.list_questions(s.id)
+  end
+
+  test "segments without a question create no questions", %{speech: s} do
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Welcome all", start_ms: 0, end_ms: 500}
+      ])
+
+    assert Questions.list_questions(s.id) == []
+    refute_receive {:question_created, _}
+  end
+
+  test "create_verbal_questions picks up segments saved another way", %{speech: s} do
+    {:ok, artifact} = Takeaway.Speeches.create_artifact(%{kind: "transcript", speech_id: s.id})
+
+    {:ok, _} =
+      Takeaway.Speeches.add_transcript_segment(%{
+        artifact_id: artifact.id,
+        text: "Is it open source?",
+        start_ms: 100,
+        end_ms: 400
+      })
+
+    assert {:ok, [%{source: "verbal", text: "Is it open source?"}]} =
+             Questions.create_verbal_questions(s.id)
+
+    assert {:ok, []} = Questions.create_verbal_questions(s.id)
+  end
+
+  test "a non-question segment after a verbal question marks it answered", %{speech: s} do
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Does it scale?", start_ms: 0, end_ms: 500}
+      ])
+
+    assert [%{answered_at: nil}] = Questions.list_questions(s.id)
+    assert_receive {:question_created, _}
+
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Yes, it scales horizontally", start_ms: 600, end_ms: 1200}
+      ])
+
+    assert [%{answered_at: at}] = Questions.list_questions(s.id)
+    assert at
+    assert_receive {:question_answered, %{answered_at: ^at}}
+
+    assert {:ok, []} = Questions.mark_answered_by_segments(s.id)
+  end
+
+  test "another question or the same speaker is not a response", %{speech: s} do
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Intro talk", start_ms: 0, end_ms: 100},
+        %{text: "Does it scale?", start_ms: 200, end_ms: 500, speaker: "B"},
+        %{text: "And is it fast?", start_ms: 600, end_ms: 800, speaker: "A"}
+      ])
+
+    assert Enum.all?(Questions.list_questions(s.id), &is_nil(&1.answered_at))
+    refute_receive {:question_answered, _}
+
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Good questions, both", start_ms: 1100, end_ms: 1300, speaker: "A"}
+      ])
+
+    # speaker A answers B's question, but is not a response to their own
+    assert [%{answered_at: a}, %{answered_at: nil}] = Questions.list_questions(s.id)
+    assert a
+  end
 end
