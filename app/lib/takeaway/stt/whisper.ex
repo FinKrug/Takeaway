@@ -4,6 +4,11 @@ defmodule Takeaway.STT.Whisper do
   whisper.cpp server, ...). Configure with
   `config :takeaway, Takeaway.STT.Whisper, url: ..., api_key: ..., model: ...`.
   Requests `verbose_json` so segments carry start/end seconds.
+
+  Speaker diarization is on by default (`diarize: true` in the config, or
+  `STT_DIARIZE=false` to turn it off, or `diarize: false` per call). When on,
+  the request carries `diarize=true` and any `speaker` label the provider
+  returns for a segment is passed through as `:speaker`.
   """
   @behaviour Takeaway.STT
 
@@ -14,7 +19,8 @@ defmodule Takeaway.STT.Whisper do
     model = Keyword.get(opts, :model) || Keyword.get(cfg, :model, "whisper-1")
     boundary = "----takeaway" <> Base.encode16(:crypto.strong_rand_bytes(8))
 
-    body = multipart(boundary, audio, content_type, model)
+    diarize = Keyword.get(opts, :diarize, Keyword.get(cfg, :diarize, true))
+    body = multipart(boundary, audio, content_type, model, diarize)
 
     headers =
       case Keyword.get(cfg, :api_key) do
@@ -38,8 +44,13 @@ defmodule Takeaway.STT.Whisper do
     case Jason.decode(json) do
       {:ok, %{"segments" => segs}} when is_list(segs) ->
         {:ok,
-         for %{"text" => text, "start" => s, "end" => e} <- segs, String.trim(text) != "" do
-           %{text: String.trim(text), start_ms: round(s * 1000), end_ms: round(e * 1000)}
+         for %{"text" => text, "start" => s, "end" => e} = seg <- segs, String.trim(text) != "" do
+           base = %{text: String.trim(text), start_ms: round(s * 1000), end_ms: round(e * 1000)}
+
+           case seg["speaker"] do
+             sp when is_binary(sp) and sp != "" -> Map.put(base, :speaker, sp)
+             _ -> base
+           end
          end}
 
       {:ok, %{"text" => text} = m} when is_binary(text) ->
@@ -56,16 +67,23 @@ defmodule Takeaway.STT.Whisper do
     end
   end
 
-  defp multipart(boundary, audio, content_type, model) do
+  @doc false
+  def multipart(boundary, audio, content_type, model, diarize \\ true) do
     ext = if String.contains?(content_type, "ogg"), do: "ogg", else: "webm"
 
     IO.iodata_to_binary([
       "--#{boundary}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n#{model}\r\n",
       "--#{boundary}\r\nContent-Disposition: form-data; name=\"response_format\"\r\n\r\nverbose_json\r\n",
+      diarize_field(boundary, diarize),
       "--#{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"chunk.#{ext}\"\r\n",
       "Content-Type: #{content_type}\r\n\r\n",
       audio,
       "\r\n--#{boundary}--\r\n"
     ])
   end
+
+  defp diarize_field(boundary, true),
+    do: "--#{boundary}\r\nContent-Disposition: form-data; name=\"diarize\"\r\n\r\ntrue\r\n"
+
+  defp diarize_field(_boundary, _), do: ""
 end

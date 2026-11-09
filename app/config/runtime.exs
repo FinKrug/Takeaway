@@ -47,7 +47,8 @@ if stt_url = System.get_env("STT_URL") do
   config :takeaway, Takeaway.STT.Whisper,
     url: stt_url,
     api_key: System.get_env("STT_API_KEY"),
-    model: System.get_env("STT_MODEL") || "whisper-1"
+    model: System.get_env("STT_MODEL") || "whisper-1",
+    diarize: System.get_env("STT_DIARIZE") not in ["false", "0"]
 end
 
 # Post-speech summaries: set ANTHROPIC_API_KEY to have Claude write them.

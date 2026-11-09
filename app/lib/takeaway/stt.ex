@@ -6,7 +6,12 @@ defmodule Takeaway.STT do
   The implementation is chosen with `config :takeaway, :stt, MyModule`.
   """
 
-  @type segment :: %{text: String.t(), start_ms: non_neg_integer(), end_ms: non_neg_integer()}
+  @type segment :: %{
+          required(:text) => String.t(),
+          required(:start_ms) => non_neg_integer(),
+          required(:end_ms) => non_neg_integer(),
+          optional(:speaker) => String.t()
+        }
 
   @callback transcribe(audio :: binary(), content_type :: String.t(), opts :: keyword()) ::
               {:ok, [segment()]} | {:error, term()}
