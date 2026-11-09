@@ -9,6 +9,9 @@ defmodule Takeaway.Speeches.Speech do
     field :join_code, :string
     field :started_at, :utc_datetime
     field :ended_at, :utc_datetime
+    # The slide the speaker is on (1-based); nil until they first pick one. Set only via
+    # `Takeaway.SpeechCreator.set_current_slide/3`, not through `changeset/2`.
+    field :current_slide, :integer
 
     belongs_to :event, Takeaway.Events.Event
     belongs_to :speaker, Takeaway.Accounts.User

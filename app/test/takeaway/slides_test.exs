@@ -194,6 +194,45 @@ defmodule Takeaway.SlidesTest do
     end
   end
 
+  describe "current slide" do
+    test "count_slides/1 counts the stored slides", %{speech: speech} do
+      assert Slides.count_slides(speech.id) == 0
+      {:ok, _} = Slides.upsert_slides(speech.id, ["a", "b", "c"])
+      assert Slides.count_slides(speech.id) == 3
+    end
+
+    test "current_slide/2 defaults to 1 with a deck and caps at its size", %{speech: speech} do
+      assert SpeechCreator.current_slide(speech, 0) == nil
+      assert SpeechCreator.current_slide(speech, 5) == 1
+      assert SpeechCreator.current_slide(%{speech | current_slide: 7}, 0) == 7
+      assert SpeechCreator.current_slide(%{speech | current_slide: 7}, 5) == 5
+    end
+
+    test "set_current_slide/3 clamps, persists and broadcasts on the speech topic",
+         %{speech: speech} do
+      SpeechCreator.subscribe(speech.id)
+      id = speech.id
+
+      assert {:ok, %{current_slide: 2} = speech} = SpeechCreator.set_current_slide(speech, 2, 3)
+      assert_receive {:slide_changed, ^id, 2}
+      assert Speeches.get_speech!(id).current_slide == 2
+
+      assert {:ok, %{current_slide: 3} = speech} = SpeechCreator.set_current_slide(speech, 9, 3)
+      assert_receive {:slide_changed, ^id, 3}
+
+      # already there: no write, no broadcast
+      assert {:ok, %{current_slide: 3} = speech} = SpeechCreator.set_current_slide(speech, 4, 3)
+      refute_receive {:slide_changed, _, _}, 50
+
+      assert {:ok, %{current_slide: 1} = speech} = SpeechCreator.set_current_slide(speech, -2, 3)
+      assert_receive {:slide_changed, ^id, 1}
+
+      # without a deck only the lower bound applies
+      assert {:ok, %{current_slide: 42}} = SpeechCreator.set_current_slide(speech, 42, 0)
+      assert Speeches.get_speech!(id).current_slide == 42
+    end
+  end
+
   defp artifact(speech, url) do
     {:ok, a} =
       Speeches.create_artifact(%{speech_id: speech.id, kind: "slides", title: url, url: url})
