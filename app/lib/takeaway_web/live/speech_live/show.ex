@@ -260,9 +260,9 @@ defmodule TakeawayWeb.SpeechLive.Show do
           </p>
 
           <div id="summary-groups">
-            <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+            <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
               Top questions
-            </h2>
+            </h3>
 
             <p :if={@summary.content["question_groups"] == []} class="text-sm text-muted">
               No questions were asked.
@@ -277,9 +277,9 @@ defmodule TakeawayWeb.SpeechLive.Show do
           </div>
 
           <div id="summary-spikes">
-            <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+            <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
               When questions spiked
-            </h2>
+            </h3>
 
             <p :if={@summary.content["question_spikes"] == []} class="text-sm text-muted">
               No clear spike in questions.

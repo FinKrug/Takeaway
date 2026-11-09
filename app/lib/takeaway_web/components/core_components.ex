@@ -602,7 +602,7 @@ defmodule TakeawayWeb.CoreComponents do
   defp field_classes do
     "block w-full rounded-xl border border-control bg-surface px-3.5 text-base text-ink shadow-sm shadow-black/[0.02] " <>
       "placeholder:text-muted/70 transition-[border-color,box-shadow] duration-150 " <>
-      "hover:border-ink/25 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15 " <>
+      "hover:border-ink/60 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15 " <>
       "disabled:cursor-not-allowed disabled:opacity-60 sm:text-[0.9375rem]"
   end
 
