@@ -1,6 +1,9 @@
 defmodule Takeaway.Elasticsearch.Indexer do
   @moduledoc """
   Implements `Takeaway.Indexer` to stream transcript segments into Elasticsearch.
+
+  Slides (`index_slide/1`) are indexed synchronously: `Takeaway.Slides` already
+  calls it from a background task and counts failures.
   """
   @behaviour Takeaway.Indexer
 
@@ -42,6 +45,14 @@ defmodule Takeaway.Elasticsearch.Indexer do
     e ->
       Logger.warning("[Elasticsearch.Indexer] Exception indexing segment: #{inspect(e)}")
       :ok
+  end
+
+  @impl true
+  def index_slide(slide) do
+    case Elasticsearch.index_slide(slide) do
+      {:ok, _} -> :ok
+      {:error, _} = error -> error
+    end
   end
 
   defp resolve_speech_id(segment) do

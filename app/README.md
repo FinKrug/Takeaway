@@ -105,3 +105,48 @@ Events created before organizer accounts have no owner and are closed to everyon
 claimed. After registering, run in the release:
 
     bin/takeaway rpc 'Takeaway.Release.claim_unowned_events("me@example.com")'
+
+## Slide text extraction
+
+After a speech is created, the text of its slide deck is extracted in the background and
+stored per slide (`slides` table: `speech_id`, `slide_number` from 1, `text`), then handed to
+`Takeaway.Indexer.index_slide/1`. Code: `Takeaway.Slides`, hooked in `Takeaway.SpeechCreator`.
+
+**Decision (card 302.1):**
+
+| Upload | Handling |
+|---|---|
+| `.pdf` | Embedded text with poppler's `pdftotext` (`poppler-utils` in the runtime image): one process for the whole deck, pages split on form feeds. |
+| `.pptx` | Read in Elixir, no extra tools: `ppt/slides/slideN.xml` from the zip, in `presentation.xml` order, `<a:t>` runs per paragraph. |
+| `.ppt` (legacy binary) | Not supported: skipped and logged. Converting needs LibreOffice (hundreds of MB of image, several hundred MB of RAM per conversion), far beyond the 256Mi pod. Export to PDF instead. |
+| Pages without text (scans, outlined text) | Stored as `""` (still numbered and indexed). **OCR is deferred.** |
+
+Why OCR is deferred: tesseract plus English data adds roughly 30-40 MB to the image, and OCR
+needs each page rendered first (`pdftoppm`, ~300 DPI). Rendering and recognizing a page takes
+roughly 1-3 s of CPU and 100-200 MB of RAM, which doesn't fit next to the BEAM in the app
+container (500m CPU / 256Mi) without a bigger limit or a separate worker. Most talk decks are
+exported from PowerPoint, Keynote or Google Slides with embedded text, which `pdftotext` reads
+in milliseconds per page. If OCR is needed later, add it as a `Takeaway.Slides.Extractor` step
+for the empty pages, ideally in its own Deployment.
+
+Costs: `poppler-utils` grows the runtime image from about 206 MB to 274 MB (uncompressed,
+mostly libpoppler and its shared libraries). `pdftotext` read a generated 100-page PDF in
+about 110 ms in the image (~1 ms per page; real decks with more text and fonts take a few ms
+per page) and needs a few MB of RAM, outside the BEAM heap. Extractions run one at a time per pod (a lock in `Takeaway.Slides`),
+`pdftotext` is killed after 120 s, at most 300 slides are read, and slide text is capped at
+20,000 characters (8,000 sent to the index). PPTX parts are inflated with a 5 MB cap and
+scanned without an XML parser, so zip bombs and entity tricks don't apply.
+
+Failures (missing file, damaged or password-protected PDF, unsupported format, indexing
+errors) are logged with the speech id and recorded on the `slides.extract` span in Dash0; they
+never fail speech creation. Index failures don't roll back stored slides.
+
+The uploaded file lives in the pod's tmp dir and the extraction runs on the pod that received
+the upload, so two replicas are fine; a pod restart mid-extraction loses that job (re-upload
+to retry). The configured indexer, `Takeaway.Elasticsearch.Indexer`, sends each slide to
+`Takeaway.Elasticsearch.index_slide/2` (index `slides`, doc id `<speech_id>_<slide_number>`, so
+re-processing overwrites).
+
+Tests (`test/takeaway/slides_test.exs`, `test/takeaway/slides/extractor_test.exs`) build their
+PDF and PPTX files in code. The PDF tests are skipped when `pdftotext` isn't installed
+(`apt-get install poppler-utils`, `brew install poppler`).

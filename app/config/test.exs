@@ -41,6 +41,9 @@ config :phoenix_live_view,
 config :phoenix,
   sort_verified_routes_query_params: true
 
+# No background slide text extraction on upload; tests that need it turn it on.
+config :takeaway, :extract_slides, false
+
 # Disable automatic background index bootstrapper and question sync, and use Noop indexer during tests
 config :takeaway, :elasticsearch, auto_setup: false, auto_sync: false
 

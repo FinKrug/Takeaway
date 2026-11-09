@@ -69,4 +69,20 @@ defmodule Takeaway.Elasticsearch.IndexerTest do
                       %{"speech_id" => "speech_99"}}
     end
   end
+
+  describe "index_slide/1" do
+    test "indexes a slide under <speech_id>_<slide_number>" do
+      slide = %{speech_id: "7", slide_number: 3, title: "Agenda", content: "Agenda\nIntro"}
+
+      assert :ok = Indexer.index_slide(slide)
+
+      assert_receive {:indexed_document, "/slides/_doc/7_3",
+                      %{"slide_number" => 3, "title" => "Agenda", "content" => "Agenda\nIntro"}}
+    end
+
+    test "returns an error for an invalid slide instead of raising" do
+      assert {:error, :missing_speech_id} = Indexer.index_slide(%{slide_number: 1})
+      refute_receive {:indexed_document, _, _}
+    end
+  end
 end
