@@ -105,13 +105,13 @@ spec:
                   fieldPath: metadata.uid
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: "deployment.environment.name=hackathon,k8s.namespace.name=team-takeaway,k8s.deployment.name=app,k8s.pod.name=$(K8S_POD_NAME),k8s.pod.uid=$(K8S_POD_UID)"
-            # In-cluster Whisper small (deploy/whisper.yaml). Same namespace,
+            # In-cluster Distil-Whisper small.en (deploy/whisper.yaml). Same namespace,
             # so the short Service name resolves. No API key: speaches is open
             # inside the cluster.
             - name: STT_URL
               value: http://whisper:8000/v1/audio/transcriptions
             - name: STT_MODEL
-              value: Systran/faster-whisper-small
+              value: Systran/faster-distil-whisper-small.en
             # In-cluster speaker labels (deploy/diarizer.yaml). Unset it to turn
             # speaker labels off; the transcript works either way.
             - name: DIARIZER_URL
