@@ -1,0 +1,20 @@
+# Whisper base instead of small: about half the memory, a little less accurate.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whisper
+spec:
+  template:
+    spec:
+      containers:
+        - name: whisper
+          env:
+            - name: PRELOAD_MODELS
+              value: '["Systran/faster-whisper-base"]'
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi

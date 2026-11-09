@@ -99,11 +99,11 @@ defmodule Takeaway.Questions do
   @doc """
   Filter hook run before saving. Configure `config :takeaway, :question_filter` with a
   1-arity function or `{module, function}` returning `{:ok, text}` or `{:error, reason}`.
-  Defaults to accepting the text unchanged.
+  Defaults to `Takeaway.Questions.Filter.filter/1` (question and profanity checks).
   """
   def filter_text(text) do
     case Application.get_env(:takeaway, :question_filter) do
-      nil -> {:ok, text}
+      nil -> Takeaway.Questions.Filter.filter(text)
       fun when is_function(fun, 1) -> fun.(text)
       {m, f} -> apply(m, f, [text])
     end

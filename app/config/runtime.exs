@@ -59,6 +59,13 @@ if stt_url = System.get_env("STT_URL") do
     diarize: String.downcase(System.get_env("STT_DIARIZE", "")) in ["true", "1", "yes", "on"]
 end
 
+# Speaker labels from the in-cluster diarizer (deploy/diarizer.yaml): set
+# DIARIZER_URL to its /v1/diarize endpoint. Works with any STT provider.
+if diarizer_url = System.get_env("DIARIZER_URL") do
+  config :takeaway, :diarizer, Takeaway.Diarizer.HTTP
+  config :takeaway, Takeaway.Diarizer.HTTP, url: diarizer_url
+end
+
 # Post-speech summaries: set ANTHROPIC_API_KEY to have Claude write them.
 # Without it a plain extractive summary is generated instead.
 if anthropic_key = System.get_env("ANTHROPIC_API_KEY") do

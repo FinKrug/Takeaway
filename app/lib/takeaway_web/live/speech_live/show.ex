@@ -30,7 +30,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
          |> assign(:artifacts, Speeches.list_artifacts(speech.id))
          |> assign(:summary, nil)
          |> assign(:summary_locked, false)
-         |> stream(:segments, initial_segments(speech))
+         |> stream_segments(initial_segments(speech))
          |> refresh_groups()
          |> load_summary()}
     end
@@ -41,6 +41,11 @@ defmodule TakeawayWeb.SpeechLive.Show do
     do: Transcripts.list_segments(speech.id)
 
   defp initial_segments(_speech), do: []
+
+  defp stream_segments(socket, segments) do
+    {segments, last} = TakeawayWeb.SpeakerLive.mark_turns(segments)
+    socket |> assign(:last_speaker, last) |> stream(:segments, segments)
+  end
 
   # Generates (once) or loads the cached speaker summary after the speech ended.
   defp load_summary(%{assigns: %{speech: %{ended_at: %DateTime{} = _}}} = socket) do
@@ -101,7 +106,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
   end
 
   def handle_info({:transcript_segment, seg}, socket),
-    do: {:noreply, stream_insert(socket, :segments, seg)}
+    do: {:noreply, TakeawayWeb.SpeakerLive.insert_segment(socket, seg)}
 
   def handle_info({event, _}, socket)
       when event in [

@@ -1,0 +1,25 @@
+# The same app as deploy/, for the self-hosted k3d cluster on Nathan's server
+# (card 460) instead of the hackathon vcluster. Argo CD on that cluster syncs
+# this folder; the hackathon cluster keeps syncing deploy/.
+#
+# Image tags come from deploy/kustomization.yaml (set by the GitHub Action), so
+# every merge to main deploys to both clusters. Only what differs is patched
+# here: no Gateway (HTTPRoute removed), a localhost-only NodePort for the app,
+# a smaller footprint (the cluster is capped at 5 GiB on a shared server), and
+# PHX_HOST (take-away.dev).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: team-takeaway
+resources:
+  - ../deploy
+  - app-nodeport.yaml
+patches:
+  # No Gateway API in k3s: the HTTPRoute's CRD doesn't exist there.
+  - patch: |-
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: app
+      $patch: delete
+  - path: app.yaml
+  - path: whisper.yaml

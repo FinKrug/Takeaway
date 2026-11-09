@@ -161,6 +161,23 @@ defmodule TakeawayWeb.JoinLiveTest do
       assert Questions.list_questions(speech.id) == []
     end
 
+    test "default filter errors appear inline and allow a corrected question",
+         %{conn: conn, speech: speech} do
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+
+      for {text, message} <- [
+            {"Thanks everyone", "please ask a question about the talk"},
+            {"Why this sh1t?", "please rephrase your question without profanity"}
+          ] do
+        html = lv |> form("#question-form", question: %{text: text}) |> render_submit()
+        assert html =~ message
+        assert Questions.list_questions(speech.id) == []
+      end
+
+      lv |> form("#question-form", question: %{text: "How does it scale"}) |> render_submit()
+      assert [%{text: "How does it scale"}] = Questions.list_questions(speech.id)
+    end
+
     test "an invalid slide number shows an error", %{conn: conn, speech: speech} do
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
 
@@ -251,6 +268,17 @@ defmodule TakeawayWeb.JoinLiveTest do
       assert has_element?(lv, "#question-slide[value='3']")
     end
 
+    test "a filtered question shows its error and keeps the slide",
+         %{conn: conn, speech: speech} do
+      {:ok, speech} = SpeechCreator.set_current_slide(speech, 2, 0)
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+
+      html = lv |> form("#question-form", question: %{text: "Thanks everyone"}) |> render_submit()
+      assert html =~ "please ask a question about the talk"
+      assert has_element?(lv, "#question-slide[value='2']")
+      assert Questions.list_questions(speech.id) == []
+    end
+
     test "another speech's slide changes are ignored", %{conn: conn, speech: speech} do
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
       send(lv.pid, {:slide_changed, speech.id + 1, 5})
@@ -279,18 +307,18 @@ defmodule TakeawayWeb.JoinLiveTest do
 
     test "renders existing questions in order, without retracted ones",
          %{conn: conn, speech: speech, attendee: a} do
-      q1 = ask(speech, a, "First question")
-      q2 = ask(speech, a, "Second question")
-      gone = ask(speech, a, "Retracted question")
+      q1 = ask(speech, a, "First question?")
+      q2 = ask(speech, a, "Second question?")
+      gone = ask(speech, a, "Retracted question?")
       {:ok, _} = Questions.retract_question(gone)
 
       {:ok, lv, html} = live(conn, ~p"/join/#{speech.join_code}")
       assert has_element?(lv, "#questions[phx-update=stream]")
-      assert has_element?(lv, "#question-#{q1.id}", "First question")
-      assert has_element?(lv, "#question-#{q2.id}", "Second question")
-      refute html =~ "Retracted question"
-      {first, _} = :binary.match(html, "First question")
-      {second, _} = :binary.match(html, "Second question")
+      assert has_element?(lv, "#question-#{q1.id}", "First question?")
+      assert has_element?(lv, "#question-#{q2.id}", "Second question?")
+      refute html =~ "Retracted question?"
+      {first, _} = :binary.match(html, "First question?")
+      {second, _} = :binary.match(html, "Second question?")
       assert first < second
       refute has_element?(lv, "#questions-empty")
       # The initial load does not animate.
@@ -303,15 +331,15 @@ defmodule TakeawayWeb.JoinLiveTest do
       assert has_element?(lv, "#questions-empty", "No questions yet")
 
       {:ok, other} = Accounts.create_anonymous_attendee()
-      q = ask(speech, other, "From someone else")
-      assert has_element?(lv, "#question-#{q.id}", "From someone else")
+      q = ask(speech, other, "From someone else?")
+      assert has_element?(lv, "#question-#{q.id}", "From someone else?")
       assert lv |> element("#question-#{q.id}") |> render() =~ "animate-enter"
       refute has_element?(lv, "#questions-empty")
       refute has_element?(lv, "#retract-question-#{q.id}")
 
       # A duplicate broadcast updates in place instead of duplicating.
       send(lv.pid, {:question_created, q})
-      assert render(lv) |> String.split("From someone else") |> length() == 2
+      assert render(lv) |> String.split("From someone else?") |> length() == 2
 
       {:ok, _} = Questions.retract_question_by(q.id, other)
       refute has_element?(lv, "#question-#{q.id}")
@@ -343,7 +371,7 @@ defmodule TakeawayWeb.JoinLiveTest do
 
     test "own questions can be retracted, which removes them everywhere",
          %{conn: conn, speech: speech, attendee: a} do
-      q = ask(speech, a, "Mine")
+      q = ask(speech, a, "Mine?")
       Questions.subscribe(speech.id)
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
       assert has_element?(lv, "#my-question-count", "1")
@@ -360,7 +388,7 @@ defmodule TakeawayWeb.JoinLiveTest do
     test "a forged retract of someone else's question changes nothing",
          %{conn: conn, speech: speech} do
       {:ok, other} = Accounts.create_anonymous_attendee()
-      q = ask(speech, other, "Not yours")
+      q = ask(speech, other, "Not yours?")
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
 
       refute has_element?(lv, "#retract-question-#{q.id}")

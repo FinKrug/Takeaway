@@ -4,7 +4,8 @@ defmodule Takeaway.Transcripts do
   segments on the speech's `transcript` artifact, broadcasts them and hands
   them to the indexer.
   """
-  alias Takeaway.{Indexer, STT, Speeches}
+  alias Takeaway.{Diarizer, Indexer, STT, Speeches}
+  require Logger
 
   def topic(speech_id), do: "speech:#{speech_id}:transcript"
   def subscribe(speech_id), do: Phoenix.PubSub.subscribe(Takeaway.PubSub, topic(speech_id))
@@ -39,11 +40,48 @@ defmodule Takeaway.Transcripts do
   @doc """
   Transcribe one audio chunk that began `offset_ms` after the speech's start.
   Returns `{:ok, persisted_segments}`.
+
+  When a diarizer is configured (`Takeaway.Diarizer`), it runs on the same
+  chunk in parallel with STT and each segment gets the speaker that overlaps it
+  most. A diarizer failure only drops the labels, never the transcript.
   """
   def ingest_chunk(speech_id, audio, content_type, offset_ms)
       when is_binary(audio) and is_integer(offset_ms) and offset_ms >= 0 do
+    turns_task =
+      if Diarizer.enabled?(),
+        do: Task.async(fn -> safe_diarize(audio, content_type, speech_id) end)
+
     with {:ok, segments} <- STT.transcribe(audio, content_type) do
-      record_segments(speech_id, segments, offset_ms)
+      turns = await_turns(turns_task, speech_id)
+      record_segments(speech_id, Diarizer.label(segments, turns), offset_ms)
+    else
+      error ->
+        if turns_task, do: Task.shutdown(turns_task, :brutal_kill)
+        error
+    end
+  end
+
+  # The diarizer gets the time STT took plus a little more; a slow or failing
+  # diarizer costs the labels for this chunk, not the transcript.
+  # The task is linked to the caller (the speaker's LiveView): never let it crash.
+  defp safe_diarize(audio, content_type, speech_id) do
+    Diarizer.diarize(audio, content_type, speech_id)
+  rescue
+    e -> {:error, e}
+  catch
+    kind, reason -> {:error, {kind, reason}}
+  end
+
+  defp await_turns(nil, _speech_id), do: []
+
+  defp await_turns(task, speech_id) do
+    case Task.yield(task, 5_000) || Task.shutdown(task, :brutal_kill) do
+      {:ok, {:ok, turns}} ->
+        turns
+
+      other ->
+        Logger.warning("Diarizer gave no speakers for speech #{speech_id}: #{inspect(other)}")
+        []
     end
   end
 
