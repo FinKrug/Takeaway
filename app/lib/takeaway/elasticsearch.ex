@@ -11,6 +11,7 @@ defmodule Takeaway.Elasticsearch do
   @questions_index "questions"
   @transcripts_index "transcript_segments"
   @slides_index "slides"
+  @notes_index "notes"
 
   @indices [
     {@questions_index,
@@ -48,6 +49,20 @@ defmodule Takeaway.Elasticsearch do
            slide_number: %{type: "integer"},
            title: %{type: "text"},
            content: %{type: "text"}
+         }
+       }
+     }},
+    {@notes_index,
+     %{
+       mappings: %{
+         properties: %{
+           speech_id: %{type: "keyword"},
+           user_id: %{type: "keyword"},
+           body: %{type: "text"},
+           offset_ms: %{type: "integer"},
+           slide_number: %{type: "integer"},
+           inserted_at: %{type: "date"},
+           updated_at: %{type: "date"}
          }
        }
      }}
@@ -351,8 +366,93 @@ defmodule Takeaway.Elasticsearch do
   end
 
   # =========================================================================
+  # Domain Functions: Notes
+  # =========================================================================
+
+  @doc """
+  Indexes a user note taken during a speech.
+  Accepts either a map with string/atom keys or a struct.
+  """
+  def index_note(note, opts \\ []) do
+    doc = normalize_note(note)
+    id = to_string(doc[:id] || doc["id"])
+
+    index_document(@notes_index, id, doc, opts)
+  end
+
+  @doc """
+  Removes a note from the index.
+  """
+  def delete_note(note_id, opts \\ []) do
+    delete_document(@notes_index, to_string(note_id), opts)
+  end
+
+  @doc """
+  Searches notes for a specific user within a speech.
+  """
+  def search_notes(speech_id, user_id, query_text) do
+    query = %{
+      query: %{
+        bool: %{
+          must: [
+            %{match: %{body: query_text}}
+          ],
+          filter: [
+            %{term: %{speech_id: to_string(speech_id)}},
+            %{term: %{user_id: to_string(user_id)}}
+          ]
+        }
+      }
+    }
+
+    search(@notes_index, query)
+  end
+
+  @doc """
+  Searches all notes within a speech (e.g. for aggregations or post-speech summary).
+  """
+  def search_speech_notes(speech_id, query_text) do
+    query = %{
+      query: %{
+        bool: %{
+          must: [
+            %{match: %{body: query_text}}
+          ],
+          filter: [
+            %{term: %{speech_id: to_string(speech_id)}}
+          ]
+        }
+      }
+    }
+
+    search(@notes_index, query)
+  end
+
+  # =========================================================================
   # Helpers
   # =========================================================================
+
+  defp normalize_note(%_{} = struct) do
+    struct
+    |> Map.from_struct()
+    |> Map.drop([:__meta__])
+    |> normalize_note()
+  end
+
+  defp normalize_note(map) when is_map(map) do
+    now = DateTime.utc_now()
+
+    %{
+      id: map[:id] || map["id"],
+      speech_id: to_string(map[:speech_id] || map["speech_id"]),
+      user_id: to_string(map[:user_id] || map["user_id"]),
+      body: map[:body] || map["body"] || map[:text] || map["text"],
+      offset_ms: map[:offset_ms] || map["offset_ms"] || 0,
+      slide_number: map[:slide_number] || map["slide_number"],
+      inserted_at: map[:inserted_at] || map["inserted_at"] || now,
+      updated_at: map[:updated_at] || map["updated_at"] || now
+    }
+  end
 
   defp normalize_question(%_{} = struct) do
     struct

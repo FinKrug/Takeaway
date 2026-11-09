@@ -87,5 +87,26 @@ defmodule Takeaway.ElasticsearchTest do
       assert {:ok, _} = Elasticsearch.delete_document(test_index, "q1", refresh: true)
       assert {:error, :not_found} = Elasticsearch.get_document(test_index, "q1")
     end
+
+    test "indexes, searches, and deletes notes" do
+      note = %{
+        id: "note_#{System.unique_integer([:positive])}",
+        speech_id: "speech_999",
+        user_id: "user_77",
+        body: "Remember to review CAP theorem trade-offs from slide 3",
+        offset_ms: 45000,
+        slide_number: 3
+      }
+
+      assert {:ok, _} = Elasticsearch.index_note(note, refresh: true)
+
+      assert {:ok, %{"total" => %{"value" => total}, "hits" => [hit | _]}} =
+               Elasticsearch.search_notes("speech_999", "user_77", "CAP theorem")
+
+      assert total >= 1
+      assert hit["_source"]["body"] =~ "CAP theorem"
+
+      assert {:ok, _} = Elasticsearch.delete_note(note.id, refresh: true)
+    end
   end
 end
