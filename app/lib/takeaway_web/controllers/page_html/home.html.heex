@@ -46,6 +46,24 @@
         fill="#FD4F00"
       />
     </svg>
+    <p class="mt-6 text-sm">
+      <a
+        :if={@current_organizer}
+        id="organizer-dashboard-link"
+        class="link"
+        href={~p"/organizers"}
+      >
+        Your events and tickets
+      </a>
+      <a
+        :if={!@current_organizer}
+        id="organizer-login-link"
+        class="link"
+        href={~p"/organizers/log_in"}
+      >
+        Organizer log in
+      </a>
+    </p>
     <div class="mt-10 flex justify-between items-center">
       <h1 class="flex items-center text-sm font-semibold leading-6">
         Phoenix Framework

@@ -31,6 +31,23 @@ defmodule TakeawayWeb.ConnCase do
     end
   end
 
+  @doc "Registers an organizer with a unique email."
+  def organizer_fixture(attrs \\ %{}) do
+    {:ok, organizer} =
+      attrs
+      |> Enum.into(%{
+        email: "org#{System.unique_integer([:positive])}@example.com",
+        password: "correct horse"
+      })
+      |> Takeaway.Organizers.register()
+
+    organizer
+  end
+
+  @doc "Puts the organizer's login in the test session."
+  def log_in_organizer(conn, organizer),
+    do: Phoenix.ConnTest.init_test_session(conn, %{"organizer_id" => organizer.id})
+
   setup tags do
     Takeaway.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}

@@ -5,7 +5,8 @@ defmodule TakeawayWeb.SummaryLiveTest do
 
   alias Takeaway.{Accounts, Notes, Questions, SpeechCreator, Summaries}
 
-  setup do
+  setup %{conn: conn} do
+    organizer = organizer_fixture()
     Application.put_env(:takeaway, :llm, Takeaway.FakeLLM)
     Application.put_env(:takeaway, :llm_test_pid, self())
 
@@ -14,10 +15,10 @@ defmodule TakeawayWeb.SummaryLiveTest do
       Application.delete_env(:takeaway, :llm_test_pid)
     end)
 
-    {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Talk"})
+    {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Talk"}, [], organizer: organizer)
     {:ok, speech} = SpeechCreator.start_speech(speech)
     {:ok, attendee} = Accounts.create_anonymous_attendee()
-    %{speech: speech, attendee: attendee}
+    %{speech: speech, attendee: attendee, conn: log_in_organizer(conn, organizer)}
   end
 
   test "speaker ends the speech and sees the summary (generated once)", %{

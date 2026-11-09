@@ -6,8 +6,12 @@ defmodule TakeawayWeb.SpeechLive.Show do
 
   @impl true
   def mount(%{"code" => code}, _session, socket) do
-    case Speeches.get_speech_by_join_code(code) do
-      nil ->
+    speech = Speeches.get_speech_by_join_code(code)
+    organizer = socket.assigns.current_organizer
+
+    # Missing and foreign speeches look the same.
+    case speech && Takeaway.Organizers.owns_speech?(organizer, speech) && speech do
+      falsy when falsy in [nil, false] ->
         {:ok,
          socket |> put_flash(:error, "Speech not found") |> push_navigate(to: ~p"/speeches/new")}
 
@@ -108,6 +112,16 @@ defmodule TakeawayWeb.SpeechLive.Show do
               {url(~p"/join/#{@speech.join_code}")}
             </a>
           </p>
+        </div>
+
+        <div class="flex flex-wrap gap-4 text-sm" id="organizer-links">
+          <a class="link" id="tickets-link" href={~p"/events/#{@speech.event_id}/tickets"}>
+            Manage tickets
+          </a>
+          <a class="link" id="speak-link" href={~p"/speeches/#{@speech.id}/speak"}>
+            Speaker page (live transcript)
+          </a>
+          <a class="link" href={~p"/organizers"}>Your events</a>
         </div>
 
         <ul :if={@artifacts != []} class="text-sm space-y-1" id="artifacts">
