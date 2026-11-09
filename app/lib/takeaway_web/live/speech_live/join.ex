@@ -6,7 +6,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
   * Waiting room until the speaker starts, live state, ended state with the attendee's
     cliffnotes. Start/end arrive over `SpeechCreator` PubSub, no reload needed.
   * Private notes for this speech (one per attendee), autosaved with a debounce.
-  * Questions: everyone's questions streamed live (`Questions` PubSub), a form to ask one
+  * Questions: only the attendee's own questions, streamed live (`Questions` PubSub; other attendees'
+    questions are never loaded, and their broadcasts are ignored), a form to ask one
     while the speech is live, and Retract on the attendee's own questions.
   * The speaker's current slide (`{:slide_changed, speech_id, n}` on the `SpeechCreator`
     topic) is shown and prefills the form's optional slide field, so questions are tagged
@@ -97,7 +98,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
     note = (user && Notes.get_note_for(speech.id, user.id)) || %Note{}
 
     # Re-read on every mount, so a reconnect catches up on anything missed.
-    questions = Questions.list_questions(speech.id)
+    questions = Questions.list_questions_by_user(speech.id, user_id)
     slide_count = Slides.count_slides(speech.id)
     current_slide = SpeechCreator.current_slide(speech, slide_count)
 
@@ -115,8 +116,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
        current_slide: current_slide,
        question_form: question_form(slide_params(current_slide)),
        question_ids: MapSet.new(questions, & &1.id),
-       my_question_ids:
-         questions |> Enum.filter(&(user_id && &1.user_id == user_id)) |> MapSet.new(& &1.id)
+       my_question_ids: MapSet.new(questions, & &1.id)
      )
      |> stream(:questions, Enum.map(questions, &item(&1, false)), reset: true)
      |> load_captions(speech)
@@ -131,9 +131,11 @@ defmodule TakeawayWeb.SpeechLive.Join do
 
   defp load_captions(socket, _speech), do: socket
 
+  # Any user in the session, as in `TakeawayWeb.AttendeeSession`: a logged-in speaker
+  # takes part in the audience under their own account.
   defp session_attendee(%{"user_id" => id}) when is_integer(id) do
     case Accounts.get_user(id) do
-      %User{role: "attendee"} = user -> user
+      %User{} = user -> user
       _ -> nil
     end
   end
@@ -151,6 +153,9 @@ defmodule TakeawayWeb.SpeechLive.Join do
 
   # Stream entries carry `fresh?` so only questions arriving live animate in.
   defp item(question, fresh?), do: %{id: question.id, question: question, fresh?: fresh?}
+
+  defp own_question?(%{assigns: %{user_id: uid}}, %{user_id: qid}),
+    do: not is_nil(uid) and qid == uid
 
   defp track_question(socket, question) do
     mine? = socket.assigns.user_id != nil and question.user_id == socket.assigns.user_id
@@ -351,22 +356,32 @@ defmodule TakeawayWeb.SpeechLive.Join do
   def handle_info({:speech_ended, speech}, socket),
     do: {:noreply, socket |> assign(:speech, speech) |> load_summary()}
 
-  # Upsert by DOM id, so a duplicate broadcast updates instead of duplicating.
+  # Only this attendee's own questions are ever tracked or streamed; broadcasts about
+  # anyone else's (or verbal, ownerless) questions are dropped.
   def handle_info({:question_created, question}, socket) do
-    {:noreply,
-     socket |> track_question(question) |> stream_insert(:questions, item(question, true))}
+    if own_question?(socket, question) do
+      {:noreply,
+       socket |> track_question(question) |> stream_insert(:questions, item(question, true))}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:question_retracted, question}, socket) do
-    {:noreply,
-     socket |> untrack_question(question) |> stream_delete(:questions, item(question, false))}
+    if own_question?(socket, question) do
+      {:noreply,
+       socket |> untrack_question(question) |> stream_delete(:questions, item(question, false))}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info({event, question}, socket)
       when event in [:question_answered, :question_tagged] do
-    if MapSet.member?(socket.assigns.question_ids, question.id),
-      do: {:noreply, stream_insert(socket, :questions, item(question, false))},
-      else: {:noreply, socket}
+    if own_question?(socket, question) and
+         MapSet.member?(socket.assigns.question_ids, question.id),
+       do: {:noreply, stream_insert(socket, :questions, item(question, false))},
+       else: {:noreply, socket}
   end
 
   # The form's slide follows the speaker unless the attendee changed it (keeps the text).
@@ -663,7 +678,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
               id="panel-questions"
               role="tabpanel"
               aria-labelledby="tab-questions"
-              title="Questions"
+              title="Your questions"
               class="hidden md:block"
             >
               <div class="space-y-4">
@@ -727,7 +742,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
                   icon="hero-chat-bubble-left-right"
                   title="No questions yet"
                 >
-                  Questions from the audience will appear here.
+                  Questions you ask will appear here. Only you can see them.
                 </.empty_state>
 
                 <ul

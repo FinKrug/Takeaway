@@ -37,6 +37,22 @@ defmodule TakeawayWeb.PageStructureTest do
     refute title(login) == title(register)
   end
 
+  test "user pages have unique titles and structure", %{conn: conn} do
+    login = conn |> get(~p"/users/log_in") |> html_response(200)
+    register = conn |> get(~p"/users/register") |> html_response(200)
+    assert_structure(login)
+    assert_structure(register)
+    refute title(login) == title(register)
+
+    speaker = user_fixture(%{role: "speaker", name: "Sam"})
+    attendee = user_fixture()
+    dashboard = conn |> log_in_user(speaker) |> get(~p"/speaker") |> html_response(200)
+    account = conn |> log_in_user(attendee) |> get(~p"/account") |> html_response(200)
+    assert_structure(dashboard)
+    assert_structure(account)
+    assert count(doc(register), "label[for]") >= 4
+  end
+
   test "speaker page titled with the speech title", %{conn: conn} do
     organizer = organizer_fixture()
     {:ok, event} = Events.create_event(%{name: "Conf"}, organizer)

@@ -18,6 +18,17 @@ defmodule Takeaway.Questions do
       else: Repo.all(where(query, [q], is_nil(q.retracted_at)))
   end
 
+  @doc "Lists one user's active questions in a speech, in speech order. No user (`nil`) means none."
+  def list_questions_by_user(_speech_id, nil), do: []
+
+  def list_questions_by_user(speech_id, user_id) do
+    Repo.all(
+      from q in Question,
+        where: q.speech_id == ^speech_id and q.user_id == ^user_id and is_nil(q.retracted_at),
+        order_by: [asc: q.offset_ms, asc: q.id]
+    )
+  end
+
   @doc "Ranked active question groups, including singleton questions awaiting grouping."
   def list_top_groups(speech_id, opts \\ []) do
     speech_id

@@ -238,6 +238,18 @@ defmodule TakeawayWeb.JoinLiveTest do
       assert has_element?(lv, "#my-question-count", "1")
     end
 
+    test "a logged-in speaker can ask under their own account", %{speech: speech} do
+      speaker = user_fixture(%{role: "speaker", name: "Sam"})
+      conn = log_in_user(build_conn(), speaker)
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+
+      lv |> form("#question-form", question: %{text: "From a speaker?"}) |> render_submit()
+
+      assert [%Question{user_id: uid} = q] = Questions.list_questions(speech.id)
+      assert uid == speaker.id
+      assert has_element?(lv, "#question-#{q.id}", "From a speaker?")
+    end
+
     test "blank text shows an inline error and saves nothing", %{conn: conn, speech: speech} do
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
       html = lv |> form("#question-form", question: %{text: "   "}) |> render_submit()
@@ -492,29 +504,72 @@ defmodule TakeawayWeb.JoinLiveTest do
       refute lv |> element("#question-#{q1.id}") |> render() =~ "animate-enter"
     end
 
-    test "inserts and removes questions from others live, with the empty state",
-         %{conn: conn, speech: speech} do
+    test "inserts, duplicates and removes the attendee's own questions live, with the empty state",
+         %{conn: conn, speech: speech, attendee: a} do
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
       assert has_element?(lv, "#questions-empty", "No questions yet")
 
-      {:ok, other} = Accounts.create_anonymous_attendee()
-      q = ask(speech, other, "From someone else?")
-      assert has_element?(lv, "#question-#{q.id}", "From someone else?")
+      q = ask(speech, a, "My live question?")
+      assert has_element?(lv, "#question-#{q.id}", "My live question?")
       assert lv |> element("#question-#{q.id}") |> render() =~ "animate-enter"
       refute has_element?(lv, "#questions-empty")
-      refute has_element?(lv, "#retract-question-#{q.id}")
 
       # A duplicate broadcast updates in place instead of duplicating.
       send(lv.pid, {:question_created, q})
-      assert render(lv) |> String.split("From someone else?") |> length() == 2
+      assert render(lv) |> String.split("My live question?") |> length() == 2
 
-      {:ok, _} = Questions.retract_question_by(q.id, other)
+      {:ok, _} = Questions.retract_question_by(q.id, a)
       refute has_element?(lv, "#question-#{q.id}")
       assert has_element?(lv, "#questions-empty")
 
       # Retracting something that isn't listed is a no-op.
       send(lv.pid, {:question_retracted, %{q | id: -1}})
       assert has_element?(lv, "#questions-empty")
+    end
+
+    test "never shows other attendees' questions, on mount or live",
+         %{conn: conn, speech: speech, attendee: a} do
+      {:ok, b} = Accounts.create_anonymous_attendee()
+      earlier = ask(speech, b, "B asked earlier?")
+      mine = ask(speech, a, "A asked this?")
+
+      {:ok, lv, html} = live(conn, ~p"/join/#{speech.join_code}")
+      refute html =~ "B asked earlier?"
+      refute has_element?(lv, "#question-#{earlier.id}")
+      assert has_element?(lv, "#question-#{mine.id}", "A asked this?")
+      assert has_element?(lv, "#my-question-count", "1")
+
+      live_q = ask(speech, b, "B asks live?")
+      refute render(lv) =~ "B asks live?"
+      refute has_element?(lv, "#question-#{live_q.id}")
+
+      # Updates and retractions of B's questions don't leak either.
+      send(lv.pid, {:question_tagged, %{live_q | tag: "Slide 9"}})
+      send(lv.pid, {:question_answered, %{live_q | answered_at: DateTime.utc_now()}})
+      send(lv.pid, {:question_retracted, earlier})
+      html = render(lv)
+      refute html =~ "B asks live?"
+      refute html =~ "Slide 9"
+      assert has_element?(lv, "#question-#{mine.id}")
+      assert has_element?(lv, "#my-question-count", "1")
+    end
+
+    test "shows no questions without an attendee session", %{speech: speech, attendee: a} do
+      ask(speech, a, "Hidden from bots?")
+      {:ok, lv, html} = live(build_conn(), ~p"/join/#{speech.join_code}?cookie_check=1")
+      refute html =~ "Hidden from bots?"
+      assert has_element?(lv, "#questions-empty")
+
+      q = ask(speech, a, "Live, still hidden?")
+      refute render(lv) =~ "Live, still hidden?"
+      refute has_element?(lv, "#question-#{q.id}")
+    end
+
+    test "own question's answered state updates live", %{conn: conn, speech: speech, attendee: a} do
+      q = ask(speech, a, "Answer me?")
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      send(lv.pid, {:question_answered, %{q | answered_at: DateTime.utc_now()}})
+      assert has_element?(lv, "#question-#{q.id}", "Answered")
     end
 
     test "tag enrichment updates the question chip without duplicating or resurrecting it",
@@ -530,7 +585,7 @@ defmodule TakeawayWeb.JoinLiveTest do
       refute has_element?(lv, "#question-#{q.id}")
     end
 
-    test "verbal questions appear and can't be retracted", %{conn: conn, speech: speech} do
+    test "verbal questions (no owner) are not shown", %{conn: conn, speech: speech} do
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
 
       {:ok, q} =
@@ -541,8 +596,7 @@ defmodule TakeawayWeb.JoinLiveTest do
         })
 
       send(lv.pid, {:question_created, q})
-      assert has_element?(lv, "#question-#{q.id}", "Asked aloud")
-      refute has_element?(lv, "#retract-question-#{q.id}")
+      refute has_element?(lv, "#question-#{q.id}")
     end
   end
 
@@ -571,10 +625,9 @@ defmodule TakeawayWeb.JoinLiveTest do
       q = ask(speech, other, "Not yours?")
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
 
-      refute has_element?(lv, "#retract-question-#{q.id}")
+      refute has_element?(lv, "#question-#{q.id}")
       html = render_click(lv, "retract", %{"id" => to_string(q.id)})
       assert html =~ "only retract your own"
-      assert has_element?(lv, "#question-#{q.id}")
       refute Repo.get!(Question, q.id).retracted_at
 
       # Garbage ids don't crash either.

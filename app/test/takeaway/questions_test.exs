@@ -25,6 +25,21 @@ defmodule Takeaway.QuestionsTest do
     assert id == q.id
   end
 
+  test "list_questions_by_user returns only that user's active questions", %{
+    speech: s,
+    user: u,
+    other: o
+  } do
+    {:ok, mine} = Questions.submit_question(s, u, %{"text" => "Mine?"})
+    {:ok, gone} = Questions.submit_question(s, u, %{"text" => "Gone?"})
+    {:ok, _} = Questions.submit_question(s, o, %{"text" => "Theirs?"})
+    {:ok, _} = Questions.retract_question(gone)
+
+    assert [%{id: id}] = Questions.list_questions_by_user(s.id, u.id)
+    assert id == mine.id
+    assert Questions.list_questions_by_user(s.id, nil) == []
+  end
+
   test "offset is 0 before speech starts", %{speech: s, user: u} do
     s = %{s | started_at: nil}
     assert {:ok, %{offset_ms: 0}} = Questions.submit_question(s, u, %{text: "Hi?"})

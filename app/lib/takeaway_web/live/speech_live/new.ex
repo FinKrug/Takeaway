@@ -1,14 +1,19 @@
 defmodule TakeawayWeb.SpeechLive.New do
   use TakeawayWeb, :live_view
 
-  alias Takeaway.SpeechCreator
+  alias Takeaway.{Accounts, SpeechCreator}
 
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(:page_title, "New speech")
-     |> assign(:form, to_form(%{"title" => "", "description" => "", "tags" => ""}, as: :speech))
+     |> assign(
+       :form,
+       to_form(%{"title" => "", "description" => "", "tags" => "", "speaker_email" => ""},
+         as: :speech
+       )
+     )
      |> allow_upload(:plan,
        accept: ~w(.txt .md .pdf .doc .docx),
        max_entries: 1,
@@ -28,21 +33,17 @@ defmodule TakeawayWeb.SpeechLive.New do
 
   def handle_event("save", %{"speech" => params}, socket) do
     title = String.trim(params["title"] || "")
+    speaker_email = String.trim(params["speaker_email"] || "")
 
-    if title == "" do
-      {:noreply,
-       assign(
-         socket,
-         :form,
-         to_form(params, as: :speech, errors: [title: {"can't be blank", []}])
-       )}
-    else
+    with :ok <- check_title(title),
+         {:ok, speaker_id} <- find_speaker(speaker_email) do
       files = consume("plan", :plan, socket) ++ consume("slides", :slides, socket)
 
       attrs = %{
         "title" => title,
         "description" => params["description"],
-        "tags" => params["tags"]
+        "tags" => params["tags"],
+        "speaker_id" => speaker_id
       }
 
       case SpeechCreator.create_speech(attrs, files, organizer: socket.assigns.current_organizer) do
@@ -52,12 +53,33 @@ defmodule TakeawayWeb.SpeechLive.New do
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Could not save the speech")}
       end
+    else
+      {:error, field, message} ->
+        {:noreply,
+         assign(socket, :form, to_form(params, as: :speech, errors: [{field, {message, []}}]))}
     end
   end
 
   def handle_event("cancel-upload", %{"ref" => ref, "upload" => upload}, socket) do
     name = if upload == "slides", do: :slides, else: :plan
     {:noreply, cancel_upload(socket, name, ref)}
+  end
+
+  defp check_title(""), do: {:error, :title, "can't be blank"}
+  defp check_title(_), do: :ok
+
+  # An optional speaker email links the speech to that speaker's user (created without a
+  # password if new; they claim it through an invite link the organizer creates on the
+  # speech page).
+  defp find_speaker(""), do: {:ok, nil}
+
+  defp find_speaker(email) do
+    case Accounts.ensure_speaker(email) do
+      {:ok, user} -> {:ok, user.id}
+      {:error, :invalid_email} -> {:error, :speaker_email, "must be a valid email"}
+      {:error, :not_a_speaker} -> {:error, :speaker_email, "belongs to an attendee account"}
+      {:error, _} -> {:error, :speaker_email, "could not be used"}
+    end
   end
 
   # Copies the temp file out of the upload callback, which deletes it on return.
@@ -90,6 +112,13 @@ defmodule TakeawayWeb.SpeechLive.New do
             label="Description"
             placeholder="One or two sentences attendees will see when they join."
             rows="3"
+          />
+          <.input
+            field={@form[:speaker_email]}
+            type="email"
+            label="Speaker email (optional)"
+            placeholder="speaker@example.com"
+            hint="Lets this speaker log in and open the speaker page."
           />
           <.input
             field={@form[:tags]}

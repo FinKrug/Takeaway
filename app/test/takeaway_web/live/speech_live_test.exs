@@ -93,6 +93,39 @@ defmodule TakeawayWeb.SpeechLiveTest do
     assert html =~ "can&#39;t be blank"
   end
 
+  test "a speaker email links the speech to a (new or existing) speaker", %{conn: conn} do
+    {:ok, lv, _} = live(conn, ~p"/speeches/new")
+
+    {:ok, _show, _} =
+      lv
+      |> form("#speech-form", speech: %{title: "Linked", speaker_email: " Sam@Example.com "})
+      |> render_submit()
+      |> follow_redirect(conn)
+
+    speaker = Takeaway.Accounts.get_user_by_email("sam@example.com")
+    assert speaker.role == "speaker"
+    assert [%{title: "Linked"}] = Takeaway.Accounts.list_speeches_for_speaker(speaker)
+
+    {:ok, lv, _} = live(conn, ~p"/speeches/new")
+
+    {:ok, _show, _} =
+      lv
+      |> form("#speech-form", speech: %{title: "Again", speaker_email: "sam@example.com"})
+      |> render_submit()
+      |> follow_redirect(conn)
+
+    assert length(Takeaway.Accounts.list_speeches_for_speaker(speaker)) == 2
+  end
+
+  test "a bad speaker email is refused and no speech is made", %{conn: conn} do
+    {:ok, lv, _} = live(conn, ~p"/speeches/new")
+
+    html =
+      lv |> form("#speech-form", speech: %{title: "X", speaker_email: "nope"}) |> render_submit()
+
+    assert html =~ "must be a valid email"
+  end
+
   test "leaderboard shows groups live and removes retracted questions", %{
     conn: conn,
     organizer: organizer
@@ -223,6 +256,54 @@ defmodule TakeawayWeb.SpeechLiveTest do
       {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Mine"}, [], organizer: organizer)
       {:ok, _lv, html} = live_join(Phoenix.ConnTest.build_conn(), ~p"/join/#{speech.join_code}")
       assert html =~ "Waiting"
+    end
+  end
+
+  describe "speaker invite" do
+    setup %{organizer: organizer} do
+      {:ok, speaker} = Takeaway.Accounts.ensure_speaker("sam@example.com")
+
+      {:ok, speech} =
+        SpeechCreator.create_speech(%{"title" => "Invite", "speaker_id" => speaker.id}, [],
+          organizer: organizer
+        )
+
+      %{speech: speech, speaker: speaker}
+    end
+
+    test "creates an invite link that works once", %{conn: conn, speech: speech, speaker: speaker} do
+      {:ok, lv, html} = live(conn, ~p"/speeches/#{speech.join_code}")
+      assert html =~ "Speaker invite"
+      refute html =~ "invite-url"
+
+      html = lv |> element("#create-invite") |> render_click()
+      [_, link] = Regex.run(~r/id="invite-url"[^>]*value="([^"]+)"/, html)
+      assert link =~ "/users/invite/"
+      token = link |> String.split("/users/invite/") |> List.last()
+      assert Takeaway.Accounts.get_invited_speaker(token).id == speaker.id
+
+      # A second click replaces the token.
+      html = lv |> element("#create-invite") |> render_click()
+      [_, link2] = Regex.run(~r/id="invite-url"[^>]*value="([^"]+)"/, html)
+      refute link2 == link
+      assert Takeaway.Accounts.get_invited_speaker(token) == nil
+    end
+
+    test "a registered speaker needs no invite", %{conn: conn, speech: speech, speaker: speaker} do
+      {:ok, token} = Takeaway.Accounts.invite_speaker(speaker)
+
+      {:ok, _} =
+        Takeaway.Accounts.claim_speaker(token, %{"name" => "Sam", "password" => "password1"})
+
+      {:ok, _lv, html} = live(conn, ~p"/speeches/#{speech.join_code}")
+      assert html =~ "Speaker has an account"
+      refute html =~ "create-invite"
+    end
+
+    test "no invite section without a speaker", %{conn: conn, organizer: organizer} do
+      {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Solo"}, [], organizer: organizer)
+      {:ok, _lv, html} = live(conn, ~p"/speeches/#{speech.join_code}")
+      refute html =~ "Speaker invite"
     end
   end
 end

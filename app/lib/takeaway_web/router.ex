@@ -3,6 +3,15 @@ defmodule TakeawayWeb.Router do
 
   import TakeawayWeb.OrganizerAuth
 
+  import TakeawayWeb.UserAuth,
+    only: [
+      fetch_current_user: 2,
+      require_user: 2,
+      require_speaker: 2,
+      require_organizer_or_speaker: 2,
+      redirect_if_user: 2
+    ]
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -11,6 +20,7 @@ defmodule TakeawayWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_organizer
+    plug :fetch_current_user
   end
 
   pipeline :attendee do
@@ -19,6 +29,22 @@ defmodule TakeawayWeb.Router do
 
   pipeline :guest_only do
     plug :redirect_if_organizer
+  end
+
+  pipeline :user_guest_only do
+    plug :redirect_if_user
+  end
+
+  pipeline :user_only do
+    plug :require_user
+  end
+
+  pipeline :speaker_only do
+    plug :require_speaker
+  end
+
+  pipeline :organizer_or_speaker do
+    plug :require_organizer_or_speaker
   end
 
   pipeline :organizer_only do
@@ -43,7 +69,50 @@ defmodule TakeawayWeb.Router do
   scope "/", TakeawayWeb do
     pipe_through [:browser, :attendee]
 
-    live "/join/:code", SpeechLive.Join
+    live_session :attendee, on_mount: {TakeawayWeb.UserAuth, :mount_current_user} do
+      live "/join/:code", SpeechLive.Join
+    end
+  end
+
+  # Speaker and attendee accounts: sign-up, login, logout.
+  scope "/", TakeawayWeb do
+    pipe_through [:browser, :user_guest_only]
+
+    get "/users/log_in", UserController, :new_session
+    post "/users/log_in", UserController, :create_session
+    get "/users/register", UserController, :new_registration
+    post "/users/register", UserController, :create_registration
+    get "/users/invite/:token", UserController, :new_invite
+    post "/users/invite/:token", UserController, :claim_invite
+  end
+
+  scope "/", TakeawayWeb do
+    pipe_through :browser
+
+    delete "/users/log_out", UserController, :delete_session
+  end
+
+  scope "/", TakeawayWeb do
+    pipe_through [:browser, :speaker_only]
+
+    get "/speaker", UserController, :speaker_dashboard
+  end
+
+  scope "/", TakeawayWeb do
+    pipe_through [:browser, :user_only]
+
+    get "/account", UserController, :account
+  end
+
+  # Speaker page: the event's organizer or the speech's own speaker. SpeakerLive checks
+  # which speech, on mount and on every event.
+  scope "/", TakeawayWeb do
+    pipe_through [:browser, :organizer_or_speaker]
+
+    live_session :speaker_access,
+      on_mount: {TakeawayWeb.UserAuth, :require_organizer_or_speaker} do
+      live "/speeches/:id/speak", SpeakerLive
+    end
   end
 
   # Organizer login, sign-up and logout.
@@ -72,7 +141,6 @@ defmodule TakeawayWeb.Router do
       live "/events/:id/tickets", TicketsLive
       live "/speeches/new", SpeechLive.New
       live "/speeches/:code", SpeechLive.Show
-      live "/speeches/:id/speak", SpeakerLive
     end
   end
 

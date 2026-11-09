@@ -9,8 +9,6 @@ defmodule Takeaway.Organizers do
   alias Takeaway.Organizers.Organizer
   alias Takeaway.Repo
 
-  @default_iterations 210_000
-
   def register(attrs),
     do: %Organizer{} |> Organizer.registration_changeset(attrs) |> Repo.insert()
 
@@ -47,32 +45,10 @@ defmodule Takeaway.Organizers do
 
   def owns_speech?(_organizer, _speech), do: false
 
-  def hash_password(password) do
-    salt = :crypto.strong_rand_bytes(16)
-    iterations = iterations()
-    hash = derive(password, salt, iterations)
-    "pbkdf2$#{iterations}$#{Base.encode64(salt)}$#{Base.encode64(hash)}"
-  end
+  def hash_password(password), do: Takeaway.Passwords.hash(password)
 
-  defp valid_password?(%Organizer{password_hash: hash}, password) do
-    with ["pbkdf2", iterations, salt, expected] <- String.split(hash, "$"),
-         {iterations, ""} <- Integer.parse(iterations),
-         {:ok, salt} <- Base.decode64(salt),
-         {:ok, expected} <- Base.decode64(expected) do
-      Plug.Crypto.secure_compare(derive(password, salt, iterations), expected)
-    else
-      _ -> false
-    end
-  end
+  defp valid_password?(%Organizer{password_hash: hash}, password),
+    do: Takeaway.Passwords.valid?(hash, password)
 
-  defp valid_password?(nil, password) do
-    # Spend the same time as a real check so unknown emails can't be told apart.
-    _ = hash_password(password)
-    false
-  end
-
-  defp derive(password, salt, iterations),
-    do: :crypto.pbkdf2_hmac(:sha256, password, salt, iterations, 32)
-
-  defp iterations, do: Application.get_env(:takeaway, :pbkdf2_iterations, @default_iterations)
+  defp valid_password?(nil, password), do: Takeaway.Passwords.valid?(nil, password)
 end
