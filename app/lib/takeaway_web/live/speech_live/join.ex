@@ -340,7 +340,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
      socket |> untrack_question(question) |> stream_delete(:questions, item(question, false))}
   end
 
-  def handle_info({event, question}, socket) when event in [:question_answered, :question_tagged] do
+  def handle_info({event, question}, socket)
+      when event in [:question_answered, :question_tagged] do
     if MapSet.member?(socket.assigns.question_ids, question.id),
       do: {:noreply, stream_insert(socket, :questions, item(question, false))},
       else: {:noreply, socket}
@@ -732,7 +733,11 @@ defmodule TakeawayWeb.SpeechLive.Join do
                       </.badge>
                       <.badge :if={item.question.answered_at} tone="success">Answered</.badge>
                       <.badge tone="outline">
-                        {item.question.tag || Takeaway.Questions.Tagging.label(item.question.slide_number, item.question.offset_ms)}
+                        {item.question.tag ||
+                          Takeaway.Questions.Tagging.label(
+                            item.question.slide_number,
+                            item.question.offset_ms
+                          )}
                       </.badge>
                       <.button
                         :if={
