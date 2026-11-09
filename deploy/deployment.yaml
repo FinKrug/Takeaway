@@ -5,7 +5,7 @@ metadata:
   labels:
     app: app
 spec:
-  # Remove this line when you turn on the HPA (examples/hpa), or Argo CD and
+  # Remove this line when you turn on the HPA, or Argo CD and
   # the autoscaler will keep resetting each other.
   replicas: 2
   selector:
