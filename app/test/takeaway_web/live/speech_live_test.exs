@@ -42,11 +42,11 @@ defmodule TakeawayWeb.SpeechLiveTest do
     assert html =~ "/join/#{speech.join_code}"
 
     SpeechCreator.subscribe(speech.id)
-    html = show |> element("#start-speech") |> render_click()
-    assert html =~ "leaderboard-panel"
-    assert html =~ "transcript-panel"
-    assert html =~ "panel-transcript-empty"
-    refute html =~ "id=\"start-speech\""
+    show |> element("#start-speech") |> render_click()
+    assert has_element?(show, "#leaderboard-panel")
+    assert has_element?(show, "#transcript-panel")
+    assert has_element?(show, "#panel-transcript-empty")
+    refute has_element?(show, "#start-speech")
     assert_receive {:speech_started, %{started_at: %DateTime{}}}
     assert Speeches.get_speech!(speech.id).started_at
   end
@@ -62,10 +62,17 @@ defmodule TakeawayWeb.SpeechLiveTest do
         %{text: "earlier words", start_ms: 0, end_ms: 1000}
       ])
 
-    {:ok, lv, html} = live(conn, ~p"/speeches/#{speech.join_code}")
+    {:ok, lv, _html} = live(conn, ~p"/speeches/#{speech.join_code}")
     assert has_element?(lv, "#leaderboard-panel")
     assert has_element?(lv, "#transcript-panel")
-    assert html =~ "earlier words"
+    assert has_element?(lv, "#panel-transcript li", "earlier words")
+
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(speech.id, [
+        %{text: "fresh words", start_ms: 1000, end_ms: 2000}
+      ])
+
+    assert has_element?(lv, "#panel-transcript li", "fresh words")
 
     {:ok, _} = SpeechCreator.end_speech(speech)
     refute has_element?(lv, "#leaderboard-panel")
