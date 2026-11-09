@@ -21,7 +21,13 @@ defmodule Takeaway.Questions do
   @doc "PubSub topic for a speech's question events."
   def topic(speech_id), do: "speech:#{speech_id}"
 
+  @doc "Global PubSub topic for all question events across speeches."
+  def global_topic, do: "questions:all"
+
   def subscribe(speech_id), do: Phoenix.PubSub.subscribe(Takeaway.PubSub, topic(speech_id))
+
+  @doc "Subscribes to global question events across all speeches."
+  def subscribe_global, do: Phoenix.PubSub.subscribe(Takeaway.PubSub, global_topic())
 
   @doc """
   Submits a question from `user` to `speech`, stamped with the offset from the speech start
@@ -127,8 +133,10 @@ defmodule Takeaway.Questions do
   defp offset_ms(%Speech{started_at: started}, now),
     do: max(DateTime.diff(now, started, :millisecond), 0)
 
-  defp broadcast(speech_id, msg),
-    do: Phoenix.PubSub.broadcast(Takeaway.PubSub, topic(speech_id), msg)
+  defp broadcast(speech_id, msg) do
+    Phoenix.PubSub.broadcast(Takeaway.PubSub, topic(speech_id), msg)
+    Phoenix.PubSub.broadcast(Takeaway.PubSub, global_topic(), msg)
+  end
 
   def get_question(id), do: Repo.get(Question, id)
   def get_question!(id), do: Repo.get!(Question, id)

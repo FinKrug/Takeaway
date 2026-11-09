@@ -20,6 +20,7 @@ defmodule Takeaway.Application do
       {DNSCluster, query: Application.get_env(:takeaway, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Takeaway.PubSub},
       Takeaway.Elasticsearch.ClusterSetup,
+      Takeaway.Elasticsearch.QuestionSync,
       # Start a worker by calling: Takeaway.Worker.start_link(arg)
       # {Takeaway.Worker, arg},
       # Start to serve requests, typically the last entry
