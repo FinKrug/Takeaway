@@ -13,10 +13,18 @@ defmodule Takeaway.Questions.Filter do
   @disguised Regex.compile!(
                "(?<![\\p{L}\\p{N}])(?:" <>
                  Enum.map_join(@words, "|", fn word ->
-                   word |> String.graphemes() |> Enum.join("[\\s\\p{P}\\p{S}]*")
+                   word |> String.graphemes() |> Enum.join("[\\p{P}\\p{S}]*")
                  end) <> ")(?![\\p{L}\\p{N}])",
                "u"
              )
+  # Every letter must stand alone; never join a short word to a longer word.
+  @spaced Regex.compile!(
+            "(?<![\\p{L}\\p{N}])(?:" <>
+              Enum.map_join(@words, "|", fn word ->
+                word |> String.graphemes() |> Enum.join("[\\s\\p{P}\\p{S}]+")
+              end) <> ")(?![\\p{L}\\p{N}])",
+            "u"
+          )
   @max_length 2_000
 
   @doc "Returns :ok or a friendly error without echoing the rejected text."
@@ -60,6 +68,7 @@ defmodule Takeaway.Questions.Filter do
 
     normalized
     |> String.split(~r/[^\p{L}]+/u, trim: true)
-    |> Enum.any?(&MapSet.member?(@words, &1)) or Regex.match?(@disguised, normalized)
+    |> Enum.any?(&MapSet.member?(@words, &1)) or
+      Regex.match?(@disguised, normalized) or Regex.match?(@spaced, normalized)
   end
 end

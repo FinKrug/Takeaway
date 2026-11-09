@@ -28,6 +28,18 @@ defmodule Takeaway.Questions.FilterTest do
     assert {:error, _} = Filter.check("Why f u c k I?")
   end
 
+  test "does not join ordinary words or numbers into profanity" do
+    for text <- [
+          "What is the cache's hit rate?",
+          "Is 5 hit points enough?",
+          "Section 5: hit rate?",
+          "What is the cache’s hit rate?",
+          "Does this hit the cache?"
+        ] do
+      assert :ok = Filter.check(text)
+    end
+  end
+
   test "rejects missing text, statements, and punctuation or emoji alone" do
     for text <- [nil, "", "  \n", 42, "Thanks everyone", "Have a great day", "???", "🎉?"] do
       assert {:error, _} = Filter.check(text)
