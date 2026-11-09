@@ -34,7 +34,11 @@ defmodule TakeawayWeb.CoreComponents do
 
   def logo(assigns) do
     ~H"""
-    <span class={["inline-flex items-center gap-2", @class]}>
+    <span
+      class={["inline-flex items-center gap-2", @class]}
+      role={!@wordmark && "img"}
+      aria-label={!@wordmark && "takeaway"}
+    >
       <svg viewBox="0 0 32 32" class="h-full w-auto shrink-0" aria-hidden="true">
         <rect width="32" height="32" rx="9" class="fill-brand" />
         <path

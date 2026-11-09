@@ -150,6 +150,11 @@ defmodule TakeawayWeb.CoreComponentsTest do
     assigns = %{}
 
     assert rendered_to_string(~H|<.logo />|) =~ "away"
-    refute rendered_to_string(~H|<.logo wordmark={false} />|) =~ "away"
+    # No visible wordmark, but the mark keeps an accessible name (WCAG 1.1.1).
+    html = rendered_to_string(~H|<.logo wordmark={false} />|)
+    refute html =~ "font-display"
+    assert html =~ ~s(role="img")
+    assert html =~ ~s(aria-label="takeaway")
+    refute rendered_to_string(~H|<.logo />|) =~ "aria-label"
   end
 end
