@@ -57,6 +57,11 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Configure Elasticsearch
+config :takeaway, :elasticsearch,
+  url: "http://localhost:9200",
+  api_key: nil
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
