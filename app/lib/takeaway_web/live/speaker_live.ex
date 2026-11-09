@@ -61,6 +61,32 @@ defmodule TakeawayWeb.SpeakerLive do
     "#{String.pad_leading("#{div(s, 60)}", 2, "0")}:#{String.pad_leading("#{rem(s, 60)}", 2, "0")}"
   end
 
+  attr :id, :string, required: true
+  attr :segments, :any, required: true, doc: "the :segments LiveView stream"
+  attr :class, :string, default: nil
+  slot :empty, doc: "shown only while the stream has no segments"
+
+  @doc "Renders transcript segments from a LiveView stream."
+  def transcript_list(assigns) do
+    ~H"""
+    <ol id={@id} phx-update="stream" class={["space-y-3", @class]}>
+      <li :if={@empty != []} id={"#{@id}-empty"} class="hidden only:block text-sm text-muted">
+        {render_slot(@empty)}
+      </li>
+      <li
+        :for={{dom_id, seg} <- @segments}
+        id={dom_id}
+        class="flex gap-3 leading-relaxed motion-safe:animate-enter"
+      >
+        <span class="mt-0.5 shrink-0 font-mono text-xs tabular-nums text-muted">
+          {format_ms(seg.start_ms)}
+        </span>
+        <span class="text-pretty">{seg.text}</span>
+      </li>
+    </ol>
+    """
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -87,21 +113,11 @@ defmodule TakeawayWeb.SpeakerLive do
       </.card>
 
       <.card title="Live transcript">
-        <ol id="transcript" phx-update="stream" class="space-y-3">
-          <li class="hidden only:block text-sm text-muted" id="transcript-empty">
+        <.transcript_list id="transcript" segments={@streams.segments}>
+          <:empty>
             The transcript appears here a few seconds after you start the microphone.
-          </li>
-          <li
-            :for={{dom_id, seg} <- @streams.segments}
-            id={dom_id}
-            class="flex gap-3 leading-relaxed motion-safe:animate-enter"
-          >
-            <span class="mt-0.5 shrink-0 font-mono text-xs tabular-nums text-muted">
-              {format_ms(seg.start_ms)}
-            </span>
-            <span class="text-pretty">{seg.text}</span>
-          </li>
-        </ol>
+          </:empty>
+        </.transcript_list>
       </.card>
     </Layouts.app>
 

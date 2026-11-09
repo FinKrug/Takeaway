@@ -20,6 +20,8 @@ defmodule Takeaway.Application do
       {DNSCluster, query: Application.get_env(:takeaway, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Takeaway.PubSub},
       Takeaway.Elasticsearch.ClusterSetup,
+      Takeaway.Elasticsearch.QuestionSync,
+      Takeaway.Questions.GroupWorker,
       # Background slide text extraction (Takeaway.Slides.extract_async/1).
       {Task.Supervisor, name: Takeaway.Slides.TaskSupervisor},
       # Start a worker by calling: Takeaway.Worker.start_link(arg)

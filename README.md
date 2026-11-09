@@ -30,6 +30,7 @@ Main code lives in `app/lib/takeaway/` (contexts: `speeches`, `questions`, `note
 | `STT_URL`, `STT_API_KEY`, `STT_MODEL` | Speech-to-text endpoint (default model `whisper-1`). In the cluster these point at Service `whisper` (`Systran/faster-whisper-small`). |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Claude for summaries (optional). |
 | `POOL_SIZE` | Ecto pool size. |
+| `ELASTICSEARCH_URL`, `ELASTICSEARCH_API_KEY` | Derived search index; local default `http://localhost:9200`, in-cluster Service `elasticsearch:9200`. API key optional for a secured external endpoint. |
 | `DASH0_AUTH_TOKEN`, `DASH0_OTLP_ENDPOINT`, `DASH0_DATASET` | OpenTelemetry traces to Dash0 (off without a token; defaults US East, dataset `default`). |
 
 Secrets live in Kubernetes Secrets created outside git (see [`examples/agent-workflows`](examples/agent-workflows/README.md)); only their names go in `deploy/`. The repo and image are public: never commit a key.
@@ -64,6 +65,19 @@ GitOps through Argo CD in the team's vcluster (`takeaway`, namespace `team-takea
 Observe and operate it with [Radar Cloud](https://app.radarhq.io) and its MCP server. Coding agents: read [`AGENTS.md`](AGENTS.md) and the skills in `.agents/skills/` (`ship`, `debug-failure`, `canary-release`, `demo-story`, `get-started`).
 
 ### Cluster limits
+
+`deploy/elasticsearch.yaml` adds one private single-node Elasticsearch 8.17 StatefulSet:
+250m CPU / 768Mi memory requests, 1 CPU / 1Gi limits, a 256Mi heap and a 2Gi PVC.
+Memory mapping is disabled so no privileged init container or host sysctl is needed.
+The repo-defined app, Whisper, Postgres and Elasticsearch together request 1050m CPU
+and 2304Mi memory, with 3500m CPU / 4096Mi limits and two PVCs (3Gi). These figures
+exclude preinstalled components and rollout surge: check actual remaining quota in
+Radar before merging, then verify Elasticsearch readiness and app search after sync.
+The service has no public route. Postgres remains the source of truth; indexing is
+best-effort, with bounded request timeouts and no automatic HTTP retries.
+Index setup retries during a cold Elasticsearch start and checks existing field
+types. Mapping drift is logged as an error and needs an explicit index rebuild;
+the app never deletes an existing index automatically.
 
 2 CPU / 4 GiB requests, 4 CPU / 8 GiB limits, 4 PVCs / 20 GiB across the whole cluster. No privileged, hostPath, hostNetwork or hostPID pods; no LoadBalancer or NodePort Services. A pod over budget stays `Pending` with a `SyncError` event.
 

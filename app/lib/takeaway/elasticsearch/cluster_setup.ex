@@ -9,6 +9,9 @@ defmodule Takeaway.Elasticsearch.ClusterSetup do
 
   alias Takeaway.Elasticsearch
 
+  # Cover a cold Elasticsearch start while keeping initialization bounded.
+  @max_retries 29
+
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -39,10 +42,17 @@ defmodule Takeaway.Elasticsearch.ClusterSetup do
         Logger.info("[Elasticsearch.ClusterSetup] Indices initialized successfully.")
         {:noreply, state}
 
+      {:error, {:mapping_drift, index, fields}} ->
+        Logger.error(
+          "[Elasticsearch] Mapping drift in #{index}: #{inspect(fields)}; explicitly rebuild the derived index before retrying setup"
+        )
+
+        {:noreply, state}
+
       {:error, reason} ->
-        if retries < 5 and Application.get_env(:takeaway, :env) != :test do
+        if retries < @max_retries and Application.get_env(:takeaway, :env) != :test do
           Logger.warning(
-            "[Elasticsearch.ClusterSetup] ES unreachable (#{inspect(reason)}), retrying in 5s... (attempt #{retries + 1}/5)"
+            "[Elasticsearch.ClusterSetup] ES unreachable (#{inspect(reason)}), retrying in 5s... (retry #{retries + 1}/#{@max_retries})"
           )
 
           Process.send_after(self(), :setup_indices, 5_000)
