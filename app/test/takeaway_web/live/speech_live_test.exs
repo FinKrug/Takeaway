@@ -4,6 +4,14 @@ defmodule TakeawayWeb.SpeechLiveTest do
 
   alias Takeaway.{Speeches, SpeechCreator, Tickets}
 
+  # A cookieless test conn gets the attendee cookie-check redirect first; follow it.
+  defp live_join(conn, path) do
+    case live(conn, path) do
+      {:error, {:redirect, %{to: to}}} -> live(conn, to)
+      other -> other
+    end
+  end
+
   setup %{conn: conn} do
     organizer = organizer_fixture()
     %{organizer: organizer, conn: log_in_organizer(conn, organizer)}
@@ -85,9 +93,51 @@ defmodule TakeawayWeb.SpeechLiveTest do
     assert html =~ "can&#39;t be blank"
   end
 
+  test "leaderboard shows groups live and removes retracted questions", %{
+    conn: conn,
+    organizer: organizer
+  } do
+    {:ok, speech} =
+      SpeechCreator.create_speech(%{"title" => "Questions"}, [], organizer: organizer)
+
+    {:ok, speech} = SpeechCreator.start_speech(speech)
+    {:ok, user} = Takeaway.Accounts.create_anonymous_attendee()
+    {:ok, lv, _} = live(conn, ~p"/speeches/#{speech.join_code}")
+
+    {:ok, a} =
+      Takeaway.Questions.submit_question(speech, user, %{
+        text: "How does distributed consensus work?"
+      })
+
+    assert has_element?(lv, "#question-leaderboard", a.text)
+
+    {:ok, b} =
+      Takeaway.Questions.submit_question(speech, user, %{
+        text: "Explain distributed consensus work?"
+      })
+
+    {:ok, _} = Takeaway.Questions.assign_group(a, 900)
+    {:ok, _} = Takeaway.Questions.assign_group(b, 900)
+
+    Phoenix.PubSub.broadcast(
+      Takeaway.PubSub,
+      Takeaway.Questions.topic(speech.id),
+      {:question_groups_updated, speech.id}
+    )
+
+    assert has_element?(lv, "#question_groups-group-900", a.text)
+    assert has_element?(lv, "#question_groups-group-900", "2")
+    refute has_element?(lv, "#question_groups-question-#{a.id}")
+    {:ok, _} = Takeaway.Questions.retract_question_by(a.id, user)
+    assert has_element?(lv, "#question_groups-group-900", b.text)
+    assert has_element?(lv, "#question_groups-group-900", "1")
+    {:ok, _} = Takeaway.Questions.retract_question_by(b.id, user)
+    refute has_element?(lv, "#question_groups-group-900")
+  end
+
   test "join page reflects start over PubSub", %{conn: conn} do
     {:ok, speech} = SpeechCreator.create_speech(%{"title" => "T"})
-    {:ok, lv, html} = live(conn, ~p"/join/#{speech.join_code}")
+    {:ok, lv, html} = live_join(conn, ~p"/join/#{speech.join_code}")
     assert html =~ "Waiting"
     {:ok, _} = SpeechCreator.start_speech(speech)
     assert render(lv) =~ "The speech is live"
@@ -109,7 +159,7 @@ defmodule TakeawayWeb.SpeechLiveTest do
     test "events without tickets still open freely", %{conn: conn} do
       {:ok, other} = Takeaway.Events.create_event(%{name: "Free"})
       {:ok, speech} = Speeches.create_speech(%{title: "Open", event_id: other.id})
-      {:ok, _lv, html} = live(conn, ~p"/join/#{speech.join_code}")
+      {:ok, _lv, html} = live_join(conn, ~p"/join/#{speech.join_code}")
       assert html =~ "Waiting"
     end
 
@@ -128,7 +178,7 @@ defmodule TakeawayWeb.SpeechLiveTest do
 
     test "valid ticket (any case) opens the page", %{conn: conn, speech: speech, ticket: t} do
       {:ok, _lv, html} =
-        live(conn, ~p"/join/#{speech.join_code}?ticket=#{String.downcase(t.code)}")
+        live_join(conn, ~p"/join/#{speech.join_code}?ticket=#{String.downcase(t.code)}")
 
       assert html =~ "Waiting"
       refute html =~ "join-ticket"
@@ -171,7 +221,7 @@ defmodule TakeawayWeb.SpeechLiveTest do
 
     test "the join page stays public", %{organizer: organizer} do
       {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Mine"}, [], organizer: organizer)
-      {:ok, _lv, html} = live(Phoenix.ConnTest.build_conn(), ~p"/join/#{speech.join_code}")
+      {:ok, _lv, html} = live_join(Phoenix.ConnTest.build_conn(), ~p"/join/#{speech.join_code}")
       assert html =~ "Waiting"
     end
   end

@@ -65,7 +65,7 @@ defmodule TakeawayWeb.TicketsLive do
     ~H"""
     <Layouts.app flash={@flash}>
       <.header>Tickets for {@event.name}</.header>
-      
+
       <p
         :if={@result}
         id="result"
@@ -73,7 +73,7 @@ defmodule TakeawayWeb.TicketsLive do
       >
         {@result}
       </p>
-      
+
       <div class="grid gap-4 sm:grid-cols-2">
         <.card>
           <.form for={@generate_form} id="generate-form" phx-submit="generate" class="space-y-3">
@@ -87,7 +87,7 @@ defmodule TakeawayWeb.TicketsLive do
             /> <.button type="submit" class="w-full">Generate</.button>
           </.form>
         </.card>
-        
+
         <.card>
           <.form for={@import_form} id="import-form" phx-submit="import" class="space-y-3">
             <.input
@@ -100,12 +100,12 @@ defmodule TakeawayWeb.TicketsLive do
           </.form>
         </.card>
       </div>
-      
+
       <.card>
         <h2 id="ticket-count" class="mb-3 font-display font-semibold tracking-tight">
           {@ticket_count} tickets
         </h2>
-        
+
         <ul id="tickets" phx-update="stream" class="flex flex-wrap gap-2 font-mono text-sm">
           <li :for={{dom_id, t} <- @streams.tickets} id={dom_id}>
             <.badge tone="outline" class="font-mono text-xs tracking-wider">{t.code}</.badge>

@@ -1,8 +1,11 @@
 defmodule TakeawayWeb.SpeakerLive do
-  @moduledoc "Speaker page: captures mic audio and shows the live transcript."
+  @moduledoc """
+  Speaker page: captures mic audio and shows the live transcript next to the
+  audience's questions (stacked on phones, side by side from `lg`).
+  """
   use TakeawayWeb, :live_view
 
-  alias Takeaway.{Speeches, Transcripts}
+  alias Takeaway.{Questions, Speeches, Transcripts}
 
   @max_chunk_bytes 8_000_000
 
@@ -13,13 +16,25 @@ defmodule TakeawayWeb.SpeakerLive do
         {:ok, socket |> put_flash(:error, "Speech not found") |> redirect(to: ~p"/")}
 
       speech ->
-        if connected?(socket), do: Transcripts.subscribe(speech.id)
+        if connected?(socket) do
+          Transcripts.subscribe(speech.id)
+          Questions.subscribe(speech.id)
+        end
+
         {segments, last} = speech.id |> Transcripts.list_segments() |> mark_turns()
 
+        # `animate_questions` is false for the initial list (and after a reconnect), so
+        # only questions that arrive live get the enter animation.
         {:ok,
          socket
-         |> assign(speech: speech, recording: false, last_speaker: last)
-         |> stream(:segments, segments)}
+         |> assign(
+           speech: speech,
+           recording: false,
+           animate_questions: false,
+           last_speaker: last
+         )
+         |> stream(:segments, segments)
+         |> stream(:questions, Questions.list_questions(speech.id))}
     end
   end
 
@@ -54,6 +69,41 @@ defmodule TakeawayWeb.SpeakerLive do
   @impl true
   def handle_info({:transcript_segment, seg}, socket),
     do: {:noreply, insert_segment(socket, seg)}
+
+  # A repeated event for the same question updates it in place (same DOM id).
+  def handle_info({:question_created, q}, socket),
+    do: {:noreply, socket |> assign(animate_questions: true) |> stream_insert(:questions, q)}
+
+  # Deleting a question that isn't in the list is a no-op.
+  def handle_info({:question_retracted, q}, socket),
+    do: {:noreply, stream_delete(socket, :questions, q)}
+
+  # Other speech events (e.g. `{:question_answered, q}`) aren't shown here yet.
+  def handle_info(_msg, socket), do: {:noreply, socket}
+
+  attr :id, :string, required: true
+  attr :question, Takeaway.Questions.Question, required: true
+  attr :animate, :boolean, default: false
+
+  defp question_item(assigns) do
+    ~H"""
+    <li id={@id} class={["rounded-xl bg-sunken p-3", @animate && "motion-safe:animate-enter"]}>
+      <p class="text-base font-medium leading-snug text-pretty text-ink sm:text-lg">
+        {@question.text}
+      </p>
+      <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+        <span class="font-mono tabular-nums">{format_ms(@question.offset_ms)}</span>
+        <.badge :if={@question.slide_number} tone="outline">Slide {@question.slide_number}</.badge>
+        <.badge :if={@question.source == "verbal"} tone="brand">
+          <.icon name="hero-microphone" class="size-3" /> Spoken
+        </.badge>
+        <.badge :if={@question.source != "verbal"}>
+          <.icon name="hero-pencil-square" class="size-3" /> Typed
+        </.badge>
+      </div>
+    </li>
+    """
+  end
 
   @doc false
   def format_ms(ms) do
@@ -156,7 +206,7 @@ defmodule TakeawayWeb.SpeakerLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} wide>
       <.header>{@speech.title}</.header>
 
       <.card tone={if @recording, do: "brand", else: "default"}>
@@ -178,13 +228,37 @@ defmodule TakeawayWeb.SpeakerLive do
         </div>
       </.card>
 
-      <.card title="Live transcript">
-        <.transcript_list id="transcript" segments={@streams.segments}>
-          <:empty>
-            The transcript appears here a few seconds after you start the microphone.
-          </:empty>
-        </.transcript_list>
-      </.card>
+      <div class="grid gap-4 lg:grid-cols-2 lg:items-start">
+        <.card title="Live transcript" class="min-w-0">
+          <.transcript_list id="transcript" segments={@streams.segments}>
+            <:empty>
+              The transcript appears here a few seconds after you start the microphone.
+            </:empty>
+          </.transcript_list>
+        </.card>
+
+        <.card id="questions-card" title="Questions" class="min-w-0">
+          <ol
+            id="questions"
+            phx-update="stream"
+            aria-live="polite"
+            aria-relevant="additions"
+            class="space-y-3 lg:max-h-[70vh] lg:overflow-y-auto"
+          >
+            <li id="questions-empty" class="hidden only:block">
+              <.empty_state icon="hero-chat-bubble-left-right" title="No questions yet">
+                Questions from the audience appear here as they come in.
+              </.empty_state>
+            </li>
+            <.question_item
+              :for={{dom_id, q} <- @streams.questions}
+              id={dom_id}
+              question={q}
+              animate={@animate_questions}
+            />
+          </ol>
+        </.card>
+      </div>
     </Layouts.app>
 
     <script :type={Phoenix.LiveView.ColocatedHook} name=".MicStream">

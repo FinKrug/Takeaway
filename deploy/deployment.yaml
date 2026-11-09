@@ -8,6 +8,14 @@ spec:
   # Remove this line when you turn on the HPA, or Argo CD and
   # the autoscaler will keep resetting each other.
   replicas: 2
+  # Replace pods one at a time, without an extra surge pod: CPU limits are at
+  # 3.8 of the team's 4 CPU, and a surge pod (+500m) would exceed the quota,
+  # stay Pending and stall the rollout.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: app
@@ -62,6 +70,8 @@ spec:
                   key: uri
             - name: POOL_SIZE
               value: "5"
+            - name: ELASTICSEARCH_URL
+              value: "http://elasticsearch:9200"
             - name: TEAM_NAME
               value: "takeaway"
             - name: PHX_HOST
