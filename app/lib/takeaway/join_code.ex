@@ -9,11 +9,13 @@ defmodule Takeaway.JoinCode do
     for _ <- 1..length, into: "", do: <<Enum.random(@alphabet)>>
   end
 
-  def put_join_code(changeset) do
-    if get_field(changeset, :join_code) do
+  def put_join_code(changeset), do: put_code(changeset, :join_code, 6)
+
+  def put_code(changeset, field, length) do
+    if get_field(changeset, field) do
       changeset
     else
-      put_change(changeset, :join_code, generate())
+      put_change(changeset, field, generate(length))
     end
   end
 end
