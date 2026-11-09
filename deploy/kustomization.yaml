@@ -14,4 +14,4 @@ resources:
 images:
   - name: app
     newName: ghcr.io/finkrug/takeaway
-    newTag: "52d1e3c"
+    newTag: "28c3d03"
