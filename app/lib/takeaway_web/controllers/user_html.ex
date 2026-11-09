@@ -87,6 +87,63 @@ defmodule TakeawayWeb.UserHTML do
     """
   end
 
+  def invite(assigns) do
+    ~H"""
+    <Layouts.app flash={@flash}>
+      <div class="mx-auto w-full max-w-sm space-y-6">
+        <.header>
+          Accept your invite
+          <:subtitle>Set a name and password to open your speaker pages.</:subtitle>
+        </.header>
+        <.card>
+          <.form
+            for={@form}
+            id="invite-form"
+            action={~p"/users/invite/#{@token}"}
+            class="space-y-4"
+          >
+            <.input field={@form[:name]} type="text" label="Name" autocomplete="name" required />
+            <.input
+              name="invited_email"
+              id="invited-email"
+              type="email"
+              label="Email"
+              value={@email}
+              readonly
+            />
+            <.input
+              field={@form[:password]}
+              type="password"
+              label="Password"
+              hint="At least 8 characters."
+              autocomplete="new-password"
+              required
+            />
+            <.button type="submit" size="lg" class="w-full">Create account</.button>
+          </.form>
+        </.card>
+      </div>
+    </Layouts.app>
+    """
+  end
+
+  def invalid_invite(assigns) do
+    ~H"""
+    <Layouts.app flash={@flash}>
+      <div class="mx-auto w-full max-w-sm space-y-6">
+        <.header>
+          This invite link is not valid
+          <:subtitle>
+            It may have been used or replaced. Ask the organizer for a new link, or log in if
+            you already have an account.
+          </:subtitle>
+        </.header>
+        <.button href={~p"/users/log_in"} size="lg" class="w-full">Log in</.button>
+      </div>
+    </Layouts.app>
+    """
+  end
+
   def speaker_dashboard(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>

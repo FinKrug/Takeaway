@@ -258,4 +258,52 @@ defmodule TakeawayWeb.SpeechLiveTest do
       assert html =~ "Waiting"
     end
   end
+
+  describe "speaker invite" do
+    setup %{organizer: organizer} do
+      {:ok, speaker} = Takeaway.Accounts.ensure_speaker("sam@example.com")
+
+      {:ok, speech} =
+        SpeechCreator.create_speech(%{"title" => "Invite", "speaker_id" => speaker.id}, [],
+          organizer: organizer
+        )
+
+      %{speech: speech, speaker: speaker}
+    end
+
+    test "creates an invite link that works once", %{conn: conn, speech: speech, speaker: speaker} do
+      {:ok, lv, html} = live(conn, ~p"/speeches/#{speech.join_code}")
+      assert html =~ "Speaker invite"
+      refute html =~ "invite-url"
+
+      html = lv |> element("#create-invite") |> render_click()
+      [_, link] = Regex.run(~r/id="invite-url"[^>]*value="([^"]+)"/, html)
+      assert link =~ "/users/invite/"
+      token = link |> String.split("/users/invite/") |> List.last()
+      assert Takeaway.Accounts.get_invited_speaker(token).id == speaker.id
+
+      # A second click replaces the token.
+      html = lv |> element("#create-invite") |> render_click()
+      [_, link2] = Regex.run(~r/id="invite-url"[^>]*value="([^"]+)"/, html)
+      refute link2 == link
+      assert Takeaway.Accounts.get_invited_speaker(token) == nil
+    end
+
+    test "a registered speaker needs no invite", %{conn: conn, speech: speech, speaker: speaker} do
+      {:ok, token} = Takeaway.Accounts.invite_speaker(speaker)
+
+      {:ok, _} =
+        Takeaway.Accounts.claim_speaker(token, %{"name" => "Sam", "password" => "password1"})
+
+      {:ok, _lv, html} = live(conn, ~p"/speeches/#{speech.join_code}")
+      assert html =~ "Speaker has an account"
+      refute html =~ "create-invite"
+    end
+
+    test "no invite section without a speaker", %{conn: conn, organizer: organizer} do
+      {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Solo"}, [], organizer: organizer)
+      {:ok, _lv, html} = live(conn, ~p"/speeches/#{speech.join_code}")
+      refute html =~ "Speaker invite"
+    end
+  end
 end

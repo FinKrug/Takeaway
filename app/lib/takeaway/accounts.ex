@@ -3,9 +3,11 @@ defmodule Takeaway.Accounts do
   Users: speakers and attendees (possibly anonymous).
 
   Everyone with a password can log in. Speakers an organizer adds to a speech by email
-  (`ensure_speaker/1`) have no password until they register with that email, which claims
-  the existing row (`register_user/2`). An anonymous attendee who registers keeps their
-  row (and so their notes and questions).
+  (`ensure_speaker/1`) have no password. They claim that row only with a one-time invite
+  token: the organizer creates it (`invite_speaker/1`) and hands the link to the speaker;
+  `claim_speaker/2` redeems it. Only the token's SHA-256 is stored, and `register_user/2`
+  never claims an existing row. An anonymous attendee who registers keeps their row (and
+  so their notes and questions).
   """
   import Ecto.Query
 
@@ -36,14 +38,14 @@ defmodule Takeaway.Accounts do
     * `:anonymous_user` - the anonymous attendee of the current session; an attendee
       sign-up upgrades that row instead of inserting a new one.
 
-  A speaker sign-up whose email matches a speaker row without a password claims that row.
+  Never claims an existing speaker row: an email already in use is a normal unique error.
+  Speakers added by an organizer use `claim_speaker/2` with their invite token instead.
   """
   def register_user(attrs, opts \\ []) do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
 
     base =
       case attrs["role"] do
-        "speaker" -> unclaimed_speaker(User.normalize_email(attrs["email"])) || %User{}
         "attendee" -> upgradable(opts[:anonymous_user]) || %User{}
         _ -> %User{}
       end
@@ -51,14 +53,81 @@ defmodule Takeaway.Accounts do
     base |> User.registration_changeset(attrs) |> Repo.insert_or_update()
   end
 
-  defp unclaimed_speaker(email) when is_binary(email) do
-    case get_user_by_email(email) do
-      %User{role: "speaker", password_hash: nil} = user -> user
+  @token_bytes 32
+
+  @doc """
+  Creates a one-time invite for a passwordless speaker row and returns the raw token
+  (shown once; only its hash is stored). Inviting again replaces the previous token.
+  Errors with `:already_registered` when the speaker has a password.
+  """
+  def invite_speaker(%User{id: id}) when not is_nil(id) do
+    token = @token_bytes |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
+
+    {count, _} =
+      Repo.update_all(
+        from(u in User, where: u.id == ^id and u.role == "speaker" and is_nil(u.password_hash)),
+        set: [
+          speaker_invite_token_hash: hash_token(token),
+          invited_at: DateTime.utc_now(:second)
+        ]
+      )
+
+    if count == 1, do: {:ok, token}, else: {:error, :already_registered}
+  end
+
+  @doc "The passwordless speaker row an invite token belongs to, or `nil`."
+  def get_invited_speaker(token) when is_binary(token) and token != "" do
+    hash = hash_token(token)
+
+    with %User{role: "speaker", password_hash: nil, speaker_invite_token_hash: stored} = user <-
+           Repo.get_by(User, speaker_invite_token_hash: hash),
+         true <- Plug.Crypto.secure_compare(stored, hash) do
+      user
+    else
       _ -> nil
     end
   end
 
-  defp unclaimed_speaker(_), do: nil
+  def get_invited_speaker(_), do: nil
+
+  @doc """
+  Claims the speaker row for `token`: sets the name and password (the email stays the
+  invited one), clears the token. `{:error, :invalid_token}` for an unknown or used token,
+  `{:error, changeset}` when the details are invalid.
+  """
+  def claim_speaker(token, attrs) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+    Repo.transaction(fn ->
+      with %User{id: id} <- get_invited_speaker(token),
+           %User{} = user <- lock_unclaimed(id) do
+        attrs = Map.merge(attrs, %{"email" => user.email, "role" => "speaker"})
+
+        changeset =
+          user
+          |> User.registration_changeset(attrs)
+          |> Ecto.Changeset.put_change(:speaker_invite_token_hash, nil)
+
+        case Repo.update(changeset) do
+          {:ok, user} -> user
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+      else
+        _ -> Repo.rollback(:invalid_token)
+      end
+    end)
+  end
+
+  defp lock_unclaimed(id) do
+    Repo.one(
+      from u in User,
+        where:
+          u.id == ^id and is_nil(u.password_hash) and not is_nil(u.speaker_invite_token_hash),
+        lock: "FOR UPDATE"
+    )
+  end
+
+  defp hash_token(token), do: :crypto.hash(:sha256, token) |> Base.encode16(case: :lower)
 
   # Re-read the row: only a still-anonymous, passwordless attendee may be upgraded.
   defp upgradable(%User{id: id}) when not is_nil(id) do

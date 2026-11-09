@@ -82,6 +82,8 @@ defmodule TakeawayWeb.Router do
     post "/users/log_in", UserController, :create_session
     get "/users/register", UserController, :new_registration
     post "/users/register", UserController, :create_registration
+    get "/users/invite/:token", UserController, :new_invite
+    post "/users/invite/:token", UserController, :claim_invite
   end
 
   scope "/", TakeawayWeb do

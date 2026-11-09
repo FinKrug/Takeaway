@@ -69,7 +69,8 @@ defmodule TakeawayWeb.SpeechLive.New do
   defp check_title(_), do: :ok
 
   # An optional speaker email links the speech to that speaker's user (created without a
-  # password if new; they claim it when they register with the same email).
+  # password if new; they claim it through an invite link the organizer creates on the
+  # speech page).
   defp find_speaker(""), do: {:ok, nil}
 
   defp find_speaker(email) do

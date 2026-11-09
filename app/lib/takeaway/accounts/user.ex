@@ -16,6 +16,8 @@ defmodule Takeaway.Accounts.User do
     field :anonymous, :boolean, default: false
     field :password, :string, virtual: true, redact: true
     field :password_hash, :string, redact: true
+    field :speaker_invite_token_hash, :string, redact: true
+    field :invited_at, :utc_datetime
 
     timestamps(type: :utc_datetime)
   end
@@ -41,7 +43,8 @@ defmodule Takeaway.Accounts.User do
   @doc """
   Sign-up for a speaker or attendee. Requires email and password; speakers also a name.
   Works on a new user, on an anonymous attendee being upgraded, or on a passwordless
-  speaker row being claimed (the row ends up non-anonymous with a password).
+  speaker row being claimed with an invite (`Accounts.claim_speaker/2`; the row ends up
+  non-anonymous with a password).
   """
   def registration_changeset(user, attrs) do
     user

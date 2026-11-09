@@ -77,6 +77,43 @@ defmodule TakeawayWeb.UserController do
 
   def create_registration(conn, _params), do: new_registration(conn, %{})
 
+  def new_invite(conn, %{"token" => token}) do
+    case Accounts.get_invited_speaker(token) do
+      nil -> invalid_invite(conn)
+      user -> render_invite(conn, token, user, Accounts.change_registration(user))
+    end
+  end
+
+  def claim_invite(conn, %{"token" => token} = params) do
+    attrs = params |> Map.get("user", %{}) |> Map.take(~w(name password))
+
+    case Accounts.claim_speaker(token, attrs) do
+      {:ok, user} ->
+        UserAuth.log_in(conn, user)
+
+      {:error, :invalid_token} ->
+        invalid_invite(conn)
+
+      {:error, changeset} ->
+        render_invite(conn, token, Accounts.get_invited_speaker(token), changeset)
+    end
+  end
+
+  defp render_invite(conn, _token, nil, _changeset), do: invalid_invite(conn)
+
+  defp render_invite(conn, token, user, changeset) do
+    render(conn, :invite,
+      page_title: "Accept your invite",
+      token: token,
+      email: user.email,
+      form: Phoenix.Component.to_form(changeset, as: :user)
+    )
+  end
+
+  defp invalid_invite(conn) do
+    conn |> put_status(:not_found) |> render(:invalid_invite, page_title: "Invite not valid")
+  end
+
   def delete_session(conn, _params), do: UserAuth.log_out(conn)
 
   defp session_user(conn) do

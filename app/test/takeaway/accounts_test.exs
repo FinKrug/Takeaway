@@ -86,28 +86,60 @@ defmodule Takeaway.AccountsTest do
     assert {:error, :not_a_speaker} = Accounts.ensure_speaker("ann@example.com")
   end
 
-  test "a speaker registering with a placeholder's email claims that row" do
+  @claim %{"name" => "Sam Lee", "password" => "password1"}
+
+  test "invite_speaker returns a token whose hash is stored, and re-inviting replaces it" do
+    {:ok, speaker} = Accounts.ensure_speaker("sam@example.com")
+    assert {:ok, token} = Accounts.invite_speaker(speaker)
+    stored = Accounts.get_user!(speaker.id)
+    assert stored.invited_at
+    refute stored.speaker_invite_token_hash == token
+    assert Accounts.get_invited_speaker(token).id == speaker.id
+
+    assert {:ok, token2} = Accounts.invite_speaker(speaker)
+    refute token2 == token
+    assert Accounts.get_invited_speaker(token) == nil
+    assert Accounts.get_invited_speaker(token2).id == speaker.id
+    assert {:error, :invalid_token} = Accounts.claim_speaker(token, @claim)
+  end
+
+  test "claiming with the invite token sets the password and clears the token" do
     {:ok, placeholder} = Accounts.ensure_speaker("sam@example.com")
 
     {:ok, speech} =
       Takeaway.SpeechCreator.create_speech(%{"title" => "Talk", "speaker_id" => placeholder.id})
 
-    {:ok, user} =
-      Accounts.register_user(%{
-        role: "speaker",
-        name: "Sam Lee",
-        email: "SAM@example.com",
-        password: "password1"
-      })
+    {:ok, token} = Accounts.invite_speaker(placeholder)
 
+    # The email in the params is ignored: the row keeps the invited email.
+    assert {:ok, user} = Accounts.claim_speaker(token, Map.put(@claim, "email", "evil@x.com"))
     assert user.id == placeholder.id
+    assert user.email == "sam@example.com"
     assert user.name == "Sam Lee"
+    assert is_nil(user.speaker_invite_token_hash)
     assert Accounts.authenticate("sam@example.com", "password1").id == user.id
-    assert [%{id: id}] = Accounts.list_speeches_for_speaker(user)
-    assert id == speech.id
     assert Accounts.speaks?(user, Speeches.get_speech!(speech.id))
 
-    # Once claimed, the row can't be claimed again.
+    # A used token fails, and a registered speaker needs no invite.
+    assert {:error, :invalid_token} = Accounts.claim_speaker(token, @claim)
+    assert Accounts.get_invited_speaker(token) == nil
+    assert {:error, :already_registered} = Accounts.invite_speaker(user)
+  end
+
+  test "claiming fails with a wrong token, and invalid details keep the invite" do
+    {:ok, speaker} = Accounts.ensure_speaker("sam@example.com")
+    {:ok, token} = Accounts.invite_speaker(speaker)
+
+    assert {:error, :invalid_token} = Accounts.claim_speaker("nope", @claim)
+    assert {:error, :invalid_token} = Accounts.claim_speaker("", @claim)
+    assert {:error, %Ecto.Changeset{}} = Accounts.claim_speaker(token, %{"name" => "Sam"})
+    assert {:ok, _} = Accounts.claim_speaker(token, @claim)
+  end
+
+  test "registering as a speaker with an invited email does not claim the row" do
+    {:ok, speaker} = Accounts.ensure_speaker("sam@example.com")
+    {:ok, _token} = Accounts.invite_speaker(speaker)
+
     assert {:error, cs} =
              Accounts.register_user(%{
                role: "speaker",
@@ -117,6 +149,7 @@ defmodule Takeaway.AccountsTest do
              })
 
     assert "has already been taken" in errors_on(cs).email
+    assert is_nil(Accounts.get_user!(speaker.id).password_hash)
   end
 
   test "an attendee sign-up doesn't claim a speaker placeholder" do

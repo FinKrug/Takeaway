@@ -76,21 +76,17 @@ defmodule TakeawayWeb.UserControllerTest do
       assert conn |> recycle() |> get(~p"/account") |> html_response(200) =~ "Talk"
     end
 
-    test "a speaker claims the row an organizer created", %{conn: conn} do
+    test "a plain speaker sign-up can't take an organizer-created row", %{conn: conn} do
       {:ok, placeholder} = Accounts.ensure_speaker("sam@example.com")
 
       conn =
         post(conn, ~p"/users/register",
-          user: %{
-            role: "speaker",
-            name: "Sam Lee",
-            email: "sam@example.com",
-            password: "password1"
-          }
+          user: %{role: "speaker", name: "Sam", email: "sam@example.com", password: "password1"}
         )
 
-      assert redirected_to(conn) == ~p"/speaker"
-      assert get_session(conn, :user_id) == placeholder.id
+      assert html_response(conn, 200) =~ "has already been taken"
+      refute get_session(conn, :user_id)
+      assert is_nil(Accounts.get_user!(placeholder.id).password_hash)
     end
 
     test "a logged-in user is sent home from the sign-up page", %{conn: conn} do
@@ -230,4 +226,56 @@ defmodule TakeawayWeb.UserControllerTest do
   end
 
   defp log_in_anonymous(conn, user), do: log_in_user(conn, user)
+
+  describe "speaker invite" do
+    setup do
+      {:ok, speaker} = Accounts.ensure_speaker("sam@example.com")
+      {:ok, token} = Accounts.invite_speaker(speaker)
+      %{speaker: speaker, token: token}
+    end
+
+    test "GET shows the form locked to the invited email", %{conn: conn, token: token} do
+      html = conn |> get(~p"/users/invite/#{token}") |> html_response(200)
+      assert html =~ "invite-form"
+      assert html =~ "sam@example.com"
+      assert html =~ "readonly"
+    end
+
+    test "GET with a bad token is a friendly 404", %{conn: conn} do
+      html = conn |> get(~p"/users/invite/nope") |> html_response(404)
+      assert html =~ "not valid"
+      refute html =~ "sam@example.com"
+    end
+
+    test "POST claims the row, logs in and lands on /speaker", ctx do
+      conn =
+        post(ctx.conn, ~p"/users/invite/#{ctx.token}",
+          user: %{name: "Sam Lee", password: "password1", email: "evil@x.com"}
+        )
+
+      assert redirected_to(conn) == ~p"/speaker"
+      assert get_session(conn, :user_id) == ctx.speaker.id
+      assert Accounts.get_user!(ctx.speaker.id).email == "sam@example.com"
+
+      # The token is used up.
+      again =
+        post(build_conn(), ~p"/users/invite/#{ctx.token}",
+          user: %{name: "X", password: "password1"}
+        )
+
+      assert html_response(again, 404) =~ "not valid"
+    end
+
+    test "POST with a short password re-renders the form", %{conn: conn, token: token} do
+      conn = post(conn, ~p"/users/invite/#{token}", user: %{name: "Sam", password: "short"})
+      assert html_response(conn, 200) =~ "should be at least 8"
+      assert Accounts.get_invited_speaker(token)
+    end
+
+    test "POST with a wrong token fails", %{conn: conn} do
+      conn = post(conn, ~p"/users/invite/bad", user: %{name: "Sam", password: "password1"})
+      assert html_response(conn, 404) =~ "not valid"
+      refute get_session(conn, :user_id)
+    end
+  end
 end

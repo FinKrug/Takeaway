@@ -30,6 +30,8 @@ defmodule TakeawayWeb.SpeechLive.Show do
          |> assign(:artifacts, Speeches.list_artifacts(speech.id))
          |> assign(:summary, nil)
          |> assign(:summary_locked, false)
+         |> assign(:invite_url, nil)
+         |> assign(:speaker, speech.speaker_id && Takeaway.Accounts.get_user(speech.speaker_id))
          |> stream_segments(initial_segments(speech))
          |> refresh_groups()
          |> load_summary()}
@@ -87,6 +89,23 @@ defmodule TakeawayWeb.SpeechLive.Show do
     case SpeechCreator.start_speech(socket.assigns.speech) do
       {:ok, speech} -> {:noreply, assign(socket, :speech, speech)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "Could not start the speech")}
+    end
+  end
+
+  def handle_event("create-invite", _params, socket) do
+    with %{} = speaker <- socket.assigns.speaker,
+         {:ok, token} <- Takeaway.Accounts.invite_speaker(speaker) do
+      {:noreply, assign(socket, :invite_url, url(~p"/users/invite/#{token}"))}
+    else
+      _ ->
+        {:noreply,
+         socket
+         |> assign(
+           :speaker,
+           socket.assigns.speech.speaker_id &&
+             Takeaway.Accounts.get_user(socket.assigns.speech.speaker_id)
+         )
+         |> put_flash(:error, "Could not create an invite link")}
     end
   end
 
@@ -196,6 +215,36 @@ defmodule TakeawayWeb.SpeechLive.Show do
         </.button>
         <.button href={~p"/organizers"} variant="ghost" size="sm">Your events</.button>
       </div>
+
+      <.card :if={@speaker} id="speaker-invite" title="Speaker invite">
+        <p :if={@speaker.password_hash} id="speaker-registered" class="text-sm text-muted">
+          Speaker has an account ({@speaker.email}).
+        </p>
+
+        <div :if={is_nil(@speaker.password_hash)} class="space-y-3">
+          <p class="text-sm text-muted">
+            {@speaker.email} has no account yet. Create an invite link and send it to them
+            yourself; it works once and a new link replaces the old one.
+          </p>
+
+          <div :if={@invite_url}>
+            <label for="invite-url" class="mb-1 block text-sm font-medium">Invite link</label>
+            <input
+              id="invite-url"
+              type="text"
+              readonly
+              value={@invite_url}
+              onfocus="this.select()"
+              class="w-full rounded-xl border border-control bg-surface px-3 py-2 font-mono text-sm"
+            />
+          </div>
+
+          <.button id="create-invite" phx-click="create-invite" variant="secondary" size="sm">
+            <.icon name="hero-link-mini" class="size-4" />
+            {if @invite_url, do: "Create a new invite link", else: "Create invite link"}
+          </.button>
+        </div>
+      </.card>
 
       <.card :if={@artifacts != []} title="Materials" id="artifacts">
         <ul class="-my-1 divide-y divide-line">
