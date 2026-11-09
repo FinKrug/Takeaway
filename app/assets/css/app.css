@@ -82,7 +82,7 @@
   --tk-ink: oklch(22% 0.018 265);
   --tk-muted: oklch(50% 0.016 265);
 
-  --tk-brand: oklch(58% 0.19 38);
+  --tk-brand: oklch(56% 0.19 38);
   --tk-brand-strong: oklch(52% 0.18 36);
   --tk-brand-soft: oklch(95.5% 0.03 45);
   --tk-on-brand: oklch(99% 0.005 75);
@@ -129,6 +129,8 @@
     background-color: var(--tk-canvas);
     color: var(--tk-ink);
     font-family: var(--font-sans);
+    /* 1.4.10: long words/codes wrap instead of forcing horizontal scroll */
+    overflow-wrap: break-word;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -142,6 +144,11 @@
     outline: 2px solid var(--tk-brand);
     outline-offset: 2px;
   }
+
+  /* WCAG 2.4.11: focused elements must not hide under the sticky header. */
+  html {
+    scroll-padding-top: 5rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -149,7 +156,9 @@
   *::before,
   *::after {
     animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

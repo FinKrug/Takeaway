@@ -34,7 +34,11 @@ defmodule TakeawayWeb.CoreComponents do
 
   def logo(assigns) do
     ~H"""
-    <span class={["inline-flex items-center gap-2", @class]}>
+    <span
+      class={["inline-flex items-center gap-2", @class]}
+      role={!@wordmark && "img"}
+      aria-label={!@wordmark && "takeaway"}
+    >
       <svg viewBox="0 0 32 32" class="h-full w-auto shrink-0" aria-hidden="true">
         <rect width="32" height="32" rx="9" class="fill-brand" />
         <path
@@ -345,7 +349,7 @@ defmodule TakeawayWeb.CoreComponents do
     ~H"""
     <span
       class={[
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold",
+        "inline-flex max-w-full items-center gap-1.5 break-words rounded-full px-2.5 py-0.5 text-xs font-semibold",
         @tone == "neutral" && "bg-sunken text-ink",
         @tone == "brand" && "bg-brand-soft text-brand-strong",
         @tone == "success" && "bg-success-soft text-success",
@@ -378,7 +382,12 @@ defmodule TakeawayWeb.CoreComponents do
 
   def spinner(assigns) do
     ~H"""
-    <svg class={["animate-spin", @class]} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg
+      class={["motion-safe:animate-spin", @class]}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".25" stroke-width="3" />
       <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
     </svg>

@@ -229,7 +229,8 @@ defmodule TakeawayWeb.SpeakerLive do
       </p>
       <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
         <.badge tone="outline">
-          {@question.tag || Takeaway.Questions.Tagging.label(@question.slide_number, @question.offset_ms)}
+          {@question.tag ||
+            Takeaway.Questions.Tagging.label(@question.slide_number, @question.offset_ms)}
         </.badge>
         <.badge :if={@question.source == "verbal"} tone="brand">
           <.icon name="hero-microphone" class="size-3" /> Spoken

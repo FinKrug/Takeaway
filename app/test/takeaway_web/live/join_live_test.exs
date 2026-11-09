@@ -24,6 +24,65 @@ defmodule TakeawayWeb.JoinLiveTest do
     q
   end
 
+  describe "live captions" do
+    test "hidden until the speech starts, then shows transcript live, gone at end",
+         %{conn: conn, speech: speech} do
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      refute has_element?(lv, "#live-captions")
+
+      {:ok, started} = SpeechCreator.start_speech(speech)
+      send(lv.pid, {:speech_started, started})
+      assert has_element?(lv, "#live-captions-log[role=log]")
+      assert has_element?(lv, "#captions-empty")
+
+      {:ok, _} =
+        Takeaway.Transcripts.record_segments(speech.id, [
+          %{text: "hello captions", start_ms: 0, end_ms: 1000}
+        ])
+
+      assert has_element?(lv, "#captions li", "hello captions")
+
+      {:ok, _} = SpeechCreator.end_speech(started)
+      refute has_element?(lv, "#live-captions")
+    end
+
+    test "late joiner sees earlier segments", %{conn: conn, speech: speech} do
+      {:ok, speech} = SpeechCreator.start_speech(speech)
+
+      {:ok, _} =
+        Takeaway.Transcripts.record_segments(speech.id, [
+          %{text: "earlier words", start_ms: 0, end_ms: 1000}
+        ])
+
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      assert has_element?(lv, "#captions li", "earlier words")
+    end
+
+    test "waiting-room attendee gets segments recorded before they saw the start",
+         %{conn: conn, speech: speech} do
+      # Recorded before this LiveView exists, so its broadcast never reaches it,
+      # and mount skips captions because the speech hasn't started.
+      {:ok, _} =
+        Takeaway.Transcripts.record_segments(speech.id, [
+          %{text: "missed words", start_ms: 0, end_ms: 1000}
+        ])
+
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      {:ok, started} = SpeechCreator.start_speech(speech)
+      send(lv.pid, {:speech_started, started})
+      assert has_element?(lv, "#captions li", "missed words")
+    end
+  end
+
+  test "logo without wordmark has an accessible name" do
+    html =
+      Phoenix.LiveViewTest.rendered_to_string(
+        TakeawayWeb.CoreComponents.logo(%{class: "h-5", wordmark: false})
+      )
+
+    assert html =~ ~s(aria-label="takeaway")
+  end
+
   defp stub_earlier_slide(speech) do
     {:ok, _} =
       Takeaway.Slides.upsert_slides(
@@ -528,6 +587,9 @@ defmodule TakeawayWeb.JoinLiveTest do
     assert has_element?(lv, "[role=tablist]")
     assert has_element?(lv, "#tab-notes[role=tab][aria-selected=true][aria-controls=panel-notes]")
     assert has_element?(lv, "#tab-questions[role=tab][aria-selected=false]")
+    assert has_element?(lv, "#tab-notes[tabindex='0']")
+    assert has_element?(lv, "#tab-questions[tabindex='-1']")
+    assert has_element?(lv, "#attendee-tablist[phx-hook=TabList]")
     assert has_element?(lv, "#panel-notes[role=tabpanel]")
     assert has_element?(lv, "#panel-questions[role=tabpanel]")
   end
