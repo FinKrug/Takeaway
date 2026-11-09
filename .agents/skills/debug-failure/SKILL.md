@@ -13,8 +13,8 @@ The namespace is `team-<team>`, from `namespace:` in `deploy/kustomization.yaml`
 
 ## 1. Stop the damage first
 
-- **Canary crash-looping or failing its checks** (`deploy/` uses `rollout.yaml`): call `manage_rollout` with `action: abort`. A canary that is only paused at its step isn't broken: that's the person's release decision, so don't abort it; use the `canary-release` skill. The stable version takes all traffic back at once. The next pushed version starts a fresh canary.
-- **Plain Deployment broken after a push**: the rollback is `git revert <bad commit>` and a push. Don't use `manage_gitops` rollback: auto-sync puts `main` back.
+- **Canary crash-looping or failing its checks** (`deploy/` uses `rollout.yaml`): call `manage_rollout` with `action: abort`. A canary that is only paused at its step isn't broken: that's the person's release decision, so don't abort it; use the `canary-release` skill. The stable version takes all traffic back at once. The next merged version starts a fresh canary.
+- **Plain Deployment broken after a merge**: the rollback is `git revert <bad commit>` on a new branch, shipped through a PR (the `ship` skill, steps 1 and 2). Don't use `manage_gitops` rollback: auto-sync puts `main` back.
 
 Tell the person what you did before you go deeper.
 
@@ -46,7 +46,7 @@ Tell the person what you did before you go deeper.
 
 ## 4. Fix, ship, confirm
 
-Make the smallest change that removes the cause. For repo changes, push and follow the `ship` skill through step 5: verify the built SHA, or the unchanged image tag plus the intended configuration for a deliberately skipped build. For a non-git Secret correction, verify the app's authenticated operation without printing the credential. Confirm `issues` no longer lists the problem.
+Make the smallest change that removes the cause. For repo changes, open a pull request and follow the `ship` skill through step 7 (Gitar review, merge, build, rollout, URL, Dash0): verify the built SHA, or the unchanged image tag plus the intended configuration for a deliberately skipped build. For a non-git Secret correction, verify the app's authenticated operation without printing the credential. Confirm `issues` no longer lists the problem.
 
 ## 5. When it's not obvious
 

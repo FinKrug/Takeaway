@@ -4,6 +4,7 @@ This is a web application written using the Phoenix web framework.
 
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
 - Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
+- **UI:** build pages from the components in `core_components.ex` (`<.button>`, `<.card>`, `<.header>`, `<.input>`, `<.badge>`, `<.empty_state>`, `<.spinner>`, ...) and the theme tokens in `assets/css/app.css` (`bg-surface`, `text-ink`, `text-muted`, `bg-brand`, `border-line`, ...). Don't use raw Tailwind colors (`gray-500`, `orange-600`) or daisyUI classes (`btn`, `card`, `badge`): daisyUI is not installed. Design mobile first. See `README.md`, "UI kit"
 
 ### Phoenix v1.8 guidelines
 
