@@ -1,15 +1,22 @@
 defmodule TakeawayWeb.OrganizerController do
-  @moduledoc "Organizer sign-up, login, logout and the dashboard with their tickets links."
+  @moduledoc "Organizer sign-up, login, logout and the dashboard of their conferences and speeches."
   use TakeawayWeb, :controller
 
-  alias Takeaway.{Events, Organizers}
+  alias Takeaway.{Events, Organizers, Speeches}
   alias Takeaway.Organizers.Organizer
-  alias TakeawayWeb.OrganizerAuth
+  alias TakeawayWeb.{OrganizerAuth, SpeechList}
 
   def dashboard(conn, _params) do
+    organizer = conn.assigns.current_organizer
+    events = Events.list_events_for_organizer(organizer)
+    speeches = Speeches.list_speeches_for_organizer(organizer)
+
     render(conn, :dashboard,
-      page_title: "Your events",
-      events: Events.list_events_for_organizer(conn.assigns.current_organizer)
+      page_title: "Your conferences",
+      events: events,
+      speeches: speeches,
+      counts: SpeechList.status_counts(speeches),
+      groups: SpeechList.group_by_conference(speeches, events)
     )
   end
 

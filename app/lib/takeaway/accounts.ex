@@ -170,13 +170,20 @@ defmodule Takeaway.Accounts do
   def speaks?(%User{id: id, role: "speaker"}, %{speaker_id: id}) when not is_nil(id), do: true
   def speaks?(_user, _speech), do: false
 
+  @doc "Speeches the speaker gives, with their conference (event) preloaded."
   def list_speeches_for_speaker(%User{id: id}) do
     Repo.all(
-      from s in Takeaway.Speeches.Speech, where: s.speaker_id == ^id, order_by: [desc: s.id]
+      from s in Takeaway.Speeches.Speech,
+        where: s.speaker_id == ^id,
+        order_by: [desc: s.id],
+        preload: :event
     )
   end
 
-  @doc "Speeches this user has asked a question in or taken a note in."
+  @doc """
+  Speeches this user has asked a question in or taken a note in, with their conference
+  (event) preloaded.
+  """
   def list_speeches_for_attendee(%User{id: id}) do
     asked = from q in Takeaway.Questions.Question, where: q.user_id == ^id, select: q.speech_id
     noted = from n in Takeaway.Notes.Note, where: n.user_id == ^id, select: n.speech_id
@@ -184,7 +191,35 @@ defmodule Takeaway.Accounts do
     Repo.all(
       from s in Takeaway.Speeches.Speech,
         where: s.id in subquery(asked) or s.id in subquery(noted),
-        order_by: [desc: s.id]
+        order_by: [desc: s.id],
+        preload: :event
     )
+  end
+
+  @doc """
+  What the attendee left in each speech: `%{speech_id => %{questions: n, note?: bool}}`.
+  Retracted questions and empty notes don't count.
+  """
+  def attendee_activity(%User{id: id}) do
+    questions =
+      Repo.all(
+        from q in Takeaway.Questions.Question,
+          where: q.user_id == ^id and is_nil(q.retracted_at),
+          group_by: q.speech_id,
+          select: {q.speech_id, count(q.id)}
+      )
+
+    notes =
+      Repo.all(
+        from n in Takeaway.Notes.Note,
+          where: n.user_id == ^id and n.body != "",
+          select: n.speech_id
+      )
+
+    base = Map.new(questions, fn {sid, n} -> {sid, %{questions: n, note?: false}} end)
+
+    Enum.reduce(notes, base, fn sid, acc ->
+      Map.update(acc, sid, %{questions: 0, note?: true}, &%{&1 | note?: true})
+    end)
   end
 end

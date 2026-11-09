@@ -333,7 +333,7 @@ Public helpers reused by other views: `mark_turns/2`, `insert_segment/2`, `trans
 | Controller | Actions |
 |---|---|
 | `PageController` | `home` renders `page_html/home.html.heex` (wide layout: hero, join-by-code card, create-speech card, how it works). `join` normalizes `?code=` (upper-case, strip anything not A-Z/0-9, so "abc 234" and "abc-234" both work) and redirects to `/join/<CODE>`; an empty code flashes and redirects to `/#join`. |
-| `OrganizerController` | `new_session`/`create_session` (login; failure flashes "Invalid email or password" and re-renders with the email kept), `new_registration`/`create_registration` (logs in on success), `delete_session`, `dashboard` (the organizer's events, newest first, each with a "Manage tickets" link; empty state when none). Templates are function components in `organizer_html.ex`. |
+| `OrganizerController` | `new_session`/`create_session` (login; failure flashes "Invalid email or password" and re-renders with the email kept), `new_registration`/`create_registration` (logs in on success), `delete_session`, `dashboard` (see "Role home pages" below). Templates are function components in `organizer_html.ex`. |
 | `ArtifactController` | `show` sends an uploaded file as a download: looks up the artifact by integer id, takes `Path.basename` of its stored `url` inside `SpeechCreator.uploads_dir/0`, and returns 404 "Not found" if anything is missing. `basename` prevents path traversal. |
 | `HealthController` | `show` returns `text/plain` `ok\n` for both probes; no database check. |
 | `ErrorHTML`, `ErrorJSON` | Phoenix defaults: status text from the template name (for example "Not Found"); JSON is `{"errors": {"detail": ...}}`. No custom error templates. |
@@ -341,6 +341,26 @@ Public helpers reused by other views: `mark_turns/2`, `insert_segment/2`, `trans
 Observation: `/artifacts/:id` is in the plain `:browser` scope with no organizer or ownership
 check, so any visitor who knows or guesses an artifact id can download that file. The links
 are only rendered on the owner's `SpeechLive.Show` page.
+
+## Role home pages
+
+Each role has one home page that answers "what am I, and what are my talks?". All three
+use `TakeawayWeb.SpeechList` (`components/speech_list.ex`): speeches grouped by conference
+(event), conferences with a live or upcoming talk first and "Standalone talks" last; inside
+a conference, live, then upcoming, then ended. Each row shows a status badge
+(`Speech.status/1`: `:live`, `:upcoming`, `:ended`) and the join code, and a summary row
+counts each status.
+
+| Page | Who | Lists | Per speech |
+|---|---|---|---|
+| `/organizers` | organizer | `Speeches.list_speeches_for_organizer/1`: speeches they own plus every speech in their conferences; empty conferences are listed too | speaker (or "No speaker yet"), Manage (`/speeches/:code`), Speaker page; "Manage tickets" per conference |
+| `/speaker` | speaker | `Accounts.list_speeches_for_speaker/1` | Open speaker page; a "You're live" card on top for live talks; counts read Live now / To give / Given |
+| `/account` | attendee | `Accounts.list_speeches_for_attendee/1` | what they left there (`Accounts.attendee_activity/1`: question count, notes), Open or Review |
+
+The account strip at the top of every page (`#account-nav` in `root.html.heex`, entries
+from `Layouts.account_identity/1`) shows a role badge (Organizer, Speaker or Attendee), the
+name, a link to that role's home page and its log-out link. An organizer signed in as a
+speaker or attendee too gets one entry per role. Logged out, it shows Log in and Sign up.
 
 ## JavaScript hooks
 
