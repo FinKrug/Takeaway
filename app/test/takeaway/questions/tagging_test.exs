@@ -51,6 +51,27 @@ defmodule Takeaway.Questions.TaggingTest do
     assert q.tag == "Slide 4 · 01:00"
   end
 
+  test "automatic submissions capture fresh speaker state, not the stale prefilled number", ctx do
+    {:ok, _} = Takeaway.SpeechCreator.set_current_slide(ctx.speech, 3, 0)
+    q = ask(ctx, %{slide_number: 2, slide_source: "current"})
+    assert q.slide_number == 3
+    assert q.slide_source == "current"
+  end
+
+  test "automatic default slide uses the first extracted slide before controls are touched",
+       ctx do
+    {:ok, _} = Slides.upsert_slides(ctx.speech.id, ["Consensus", "Voting"])
+    q = ask(ctx)
+    assert q.slide_number == 1
+    assert q.slide_source == "current"
+  end
+
+  test "stale automatic number is cleared when the speaker has no current slide or deck", ctx do
+    q = ask(ctx, %{slide_number: 2, slide_source: "current"})
+    assert q.slide_number == nil
+    assert q.slide_source == "current"
+  end
+
   test "without content the submission timestamp is the fallback, including before start", ctx do
     q = ask(ctx)
     assert q.tag == "01:05"

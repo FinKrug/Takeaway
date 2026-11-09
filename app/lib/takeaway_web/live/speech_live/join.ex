@@ -60,6 +60,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
       question_form: question_form(%{}),
       slide_count: 0,
       current_slide: nil,
+      question_slide_manual?: false,
       question_ids: MapSet.new(),
       my_question_ids: MapSet.new(),
       last_question_at: nil
@@ -196,6 +197,15 @@ defmodule TakeawayWeb.SpeechLive.Join do
   defp slide_params(nil), do: %{}
   defp slide_params(n), do: %{"slide_number" => n}
 
+  # This state is derived on the server, never from a submitted provenance field.
+  # Also compare on submit for clients that submit before sending a change event.
+  defp slide_override?(socket, params) do
+    socket.assigns.question_slide_manual? or
+      (Map.has_key?(params, "slide_number") and
+         Ecto.Changeset.get_field(question_changeset(params), :slide_number) !=
+           socket.assigns.current_slide)
+  end
+
   defp question_error(socket, params, message) do
     form =
       params
@@ -214,18 +224,22 @@ defmodule TakeawayWeb.SpeechLive.Join do
 
   defp submit_question(socket, params) do
     %{speech: speech, user: user} = socket.assigns
+    manual? = slide_override?(socket, params)
+    socket = assign(socket, :question_slide_manual?, manual?)
 
     with {:ok, data} <- Ecto.Changeset.apply_action(question_changeset(params), :insert),
          {:ok, question} <-
            Questions.submit_question(speech, user, %{
              "text" => data.text,
-             "slide_number" => data[:slide_number]
+             "slide_number" => data[:slide_number],
+             "slide_source" => if(manual?, do: "manual", else: "current")
            }) do
       socket
       |> track_question(question)
       |> stream_insert(:questions, item(question, true))
       |> assign(
         question_form: question_form(slide_params(socket.assigns.current_slide)),
+        question_slide_manual?: false,
         last_question_at: System.monotonic_time(:millisecond)
       )
     else
@@ -255,8 +269,15 @@ defmodule TakeawayWeb.SpeechLive.Join do
 
   def handle_event("save_note", _params, socket), do: {:noreply, socket}
 
-  def handle_event("validate_question", %{"question" => params}, socket),
-    do: {:noreply, assign(socket, :question_form, question_form(params, :validate))}
+  def handle_event("validate_question", %{"question" => params} = event, socket) do
+    manual? = slide_override?(socket, params) or event["_target"] == ["question", "slide_number"]
+
+    {:noreply,
+     assign(socket,
+       question_form: question_form(params, :validate),
+       question_slide_manual?: manual?
+     )}
+  end
 
   def handle_event("submit_question", %{"question" => params}, socket) do
     cond do
@@ -317,7 +338,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
      socket |> untrack_question(question) |> stream_delete(:questions, item(question, false))}
   end
 
-  def handle_info({event, question}, socket) when event in [:question_answered, :question_tagged] do
+  def handle_info({event, question}, socket)
+      when event in [:question_answered, :question_tagged] do
     if MapSet.member?(socket.assigns.question_ids, question.id),
       do: {:noreply, stream_insert(socket, :questions, item(question, false))},
       else: {:noreply, socket}
@@ -334,8 +356,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
       end
 
     n = SpeechCreator.current_slide(%{current_slide: n}, count)
-    %{current_slide: old, question_form: form} = socket.assigns
-    follows? = to_string(form.params["slide_number"]) == to_string(old)
+    form = socket.assigns.question_form
+    follows? = not socket.assigns.question_slide_manual?
 
     socket =
       if follows? do
