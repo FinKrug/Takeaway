@@ -8,6 +8,17 @@ Deploys are GitOps: change the repo, push to `main`, and Argo CD syncs the names
 
 **Run shell commands one at a time, in plain form.** Claude Code asks the person to approve any command with `$(…)`, `$?` or shell variables, so avoid them: run `git rev-parse HEAD` on its own and use the SHA it prints in the next command; `gh run watch <id> --exit-status` already fails when the run fails, so don't echo `$?`; run `git pull --rebase` as its own command. Write and edit files with your file tools, not heredocs.
 
+## Track work on the task board
+
+The team tracks its hackathon work on the **Hackathon** board (id `8`) in the `task-board` MCP server. Keep it current as you work, so teammates can see what's happening without asking:
+
+- **At the start of a task**, call `get_board` with `board_id: 8` (the result is large; filter it for the lists and the cards you need) or `search_cards` to find the card for what you're about to do. If there isn't one, create it with `create_card` in **ToDo**. Lists, in order: **Backlog**, **ToDo**, **Doing**, **Tested**, **Done**.
+- **When you start work on a card**, move it to **Doing** with `move_card`. Label it with the person you're working for (`Nathan`, `Francisco` or `Finley`) and a type label (`Feature`, `Bug`, `Design`, `Urgent`) where one fits.
+- **As you go**, add a short `add_comment` at meaningful milestones: the commit SHA you pushed, the deploy result, a root cause you found, a decision the person made. Use checklist items (`add_checklist_item`, `set_checklist_item`) for multi-step cards and tick them off as each step lands.
+- **When it's verified**, move the card to **Tested** once the change is live and checked (the `ship` skill's three checks), and to **Done** when the person confirms it. If you stop partway, leave a comment saying where it stands and what's blocking.
+- **New work you discover** (a bug, a Checks finding to fix, a follow-up the person mentions) goes on the board as a new card in **Backlog**, not just in chat.
+- Keep comments short and factual. The board is shared with the whole team; never put tokens, kubeconfigs or other secrets on it.
+
 ## When to do what
 
 - **The person asks to get set up, or what to do first.** Follow the `get-started` skill. It checks first, and asks once before it pushes and deploys.
