@@ -88,7 +88,7 @@ defmodule TakeawayWeb.CoreComponents do
       :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
-      role="alert"
+      role={if @kind == :error, do: "alert", else: "status"}
       class="fixed inset-x-0 top-0 z-50 flex justify-center p-3 sm:inset-x-auto sm:right-0 sm:justify-end sm:p-4"
       {@rest}
     >

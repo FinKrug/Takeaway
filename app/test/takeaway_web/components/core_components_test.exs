@@ -43,6 +43,15 @@ defmodule TakeawayWeb.CoreComponentsTest do
     end
   end
 
+  describe "flash/1" do
+    test "info uses role=status and error uses role=alert" do
+      info = render_component(&flash/1, kind: :info, flash: %{"info" => "Saved"})
+      error = render_component(&flash/1, kind: :error, flash: %{"error" => "Boom"})
+      assert has?(info, "#flash-info[role=status]")
+      assert has?(error, "#flash-error[role=alert]")
+    end
+  end
+
   describe "button/1" do
     test "renders a <button> with the variant's colors and keeps extra classes" do
       assigns = %{}

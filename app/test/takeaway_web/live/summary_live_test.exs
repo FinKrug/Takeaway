@@ -85,6 +85,8 @@ defmodule TakeawayWeb.SummaryLiveTest do
     html = render_async(lv)
     assert html =~ "Your cliffnotes"
     assert html =~ "my private note"
+    assert html =~ ~s(id="summary-announcer" role="status")
+    assert html =~ "Your summary is ready."
     assert %{kind: "attendee"} = Summaries.get_attendee_summary(speech.id, a.id)
   end
 
