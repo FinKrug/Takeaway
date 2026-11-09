@@ -2,7 +2,8 @@ defmodule TakeawayWeb.SpeechLive.Show do
   @moduledoc "Speaker's speech page: Start Speech button, join link/code, leaderboard placeholder."
   use TakeawayWeb, :live_view
 
-  alias Takeaway.{Speeches, SpeechCreator, Summaries}
+  alias Takeaway.{Speeches, SpeechCreator, Summaries, Transcripts}
+  alias TakeawayWeb.SpeakerLive
 
   @impl true
   def mount(%{"code" => code}, _session, socket) do
@@ -16,7 +17,10 @@ defmodule TakeawayWeb.SpeechLive.Show do
          socket |> put_flash(:error, "Speech not found") |> push_navigate(to: ~p"/speeches/new")}
 
       speech ->
-        if connected?(socket), do: SpeechCreator.subscribe(speech.id)
+        if connected?(socket) do
+          SpeechCreator.subscribe(speech.id)
+          Transcripts.subscribe(speech.id)
+        end
 
         {:ok,
          socket
@@ -25,9 +29,16 @@ defmodule TakeawayWeb.SpeechLive.Show do
          |> assign(:artifacts, Speeches.list_artifacts(speech.id))
          |> assign(:summary, nil)
          |> assign(:summary_locked, false)
+         |> stream(:segments, initial_segments(speech))
          |> load_summary()}
     end
   end
+
+  # Render from started_at on load, not only from the broadcast.
+  defp initial_segments(%{started_at: %DateTime{}} = speech),
+    do: Transcripts.list_segments(speech.id)
+
+  defp initial_segments(_speech), do: []
 
   # Generates (once) or loads the cached speaker summary after the speech ended.
   defp load_summary(%{assigns: %{speech: %{ended_at: %DateTime{} = _}}} = socket) do
@@ -87,6 +98,9 @@ defmodule TakeawayWeb.SpeechLive.Show do
     {:noreply, assign(socket, :speech, speech)}
   end
 
+  def handle_info({:transcript_segment, seg}, socket),
+    do: {:noreply, stream_insert(socket, :segments, seg)}
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -94,12 +108,12 @@ defmodule TakeawayWeb.SpeechLive.Show do
       <.header>
         {@speech.title}
         <:subtitle :if={@speech.description not in [nil, ""]}>{@speech.description}</:subtitle>
-        
+
         <:actions>
           <.badge :if={is_nil(@speech.started_at)} tone="outline" id="speech-status">
             Not started
           </.badge>
-          
+
           <.badge
             :if={@speech.started_at && is_nil(@speech.ended_at)}
             tone="danger"
@@ -107,25 +121,25 @@ defmodule TakeawayWeb.SpeechLive.Show do
           >
             <.live_dot /> Live
           </.badge>
-          
+
           <.badge :if={@speech.ended_at} tone="neutral" id="speech-status">Ended</.badge>
         </:actions>
       </.header>
-      
+
       <div :if={@speech.tags != []} class="-mt-2 flex flex-wrap gap-2" id="speech-tags">
         <.badge :for={tag <- @speech.tags} tone="outline">#{tag}</.badge>
       </div>
-      
+
       <.card tone="brand" id="join-info" class="text-center">
         <p class="text-sm font-medium text-muted">Attendees join with code</p>
-        
+
         <p
           class="mt-1 font-mono text-[2.5rem] font-bold leading-none tracking-[0.2em] text-ink sm:text-5xl"
           id="join-code"
         >
           {@speech.join_code}
         </p>
-        
+
         <p class="mt-3 break-all text-sm text-muted">
           or open
           <a
@@ -137,7 +151,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
           </a>
         </p>
       </.card>
-      
+
       <div class="flex flex-wrap gap-2" id="organizer-links">
         <.button
           href={~p"/speeches/#{@speech.id}/speak"}
@@ -147,7 +161,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
         >
           <.icon name="hero-microphone-mini" class="size-4" /> Speaker page (live transcript)
         </.button>
-        
+
         <.button
           href={~p"/events/#{@speech.event_id}/tickets"}
           variant="secondary"
@@ -156,9 +170,9 @@ defmodule TakeawayWeb.SpeechLive.Show do
         >
           <.icon name="hero-ticket-mini" class="size-4" /> Manage tickets
         </.button>
-         <.button href={~p"/organizers"} variant="ghost" size="sm">Your events</.button>
+        <.button href={~p"/organizers"} variant="ghost" size="sm">Your events</.button>
       </div>
-      
+
       <.card :if={@artifacts != []} title="Materials" id="artifacts">
         <ul class="-my-1 divide-y divide-line">
           <li :for={a <- @artifacts}>
@@ -170,13 +184,13 @@ defmodule TakeawayWeb.SpeechLive.Show do
               <span class="min-w-0 flex-1 truncate font-medium group-hover:text-brand-strong">
                 {a.title}
               </span>
-              
+
               <.badge tone="outline">{a.kind}</.badge>
             </a>
           </li>
         </ul>
       </.card>
-      
+
       <.button
         :if={is_nil(@speech.started_at)}
         id="start-speech"
@@ -186,7 +200,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
       >
         <.icon name="hero-play-solid" class="size-5" /> Start Speech
       </.button>
-      
+
       <.button
         :if={@speech.started_at && is_nil(@speech.ended_at)}
         id="end-speech"
@@ -198,7 +212,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
       >
         <.icon name="hero-stop-solid" class="size-5" /> End Speech
       </.button>
-      
+
       <.card :if={@speech.ended_at} id="speaker-summary" title="Speech summary">
         <p
           :if={@summary_locked}
@@ -208,7 +222,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
           <.icon name="hero-lock-closed-mini" class="mt-0.5 size-4 shrink-0 text-warning" />
           Summaries are not included in your plan. Upgrade to get post-talk summaries.
         </p>
-        
+
         <p
           :if={is_nil(@summary) and not @summary_locked}
           id="summary-loading"
@@ -216,58 +230,75 @@ defmodule TakeawayWeb.SpeechLive.Show do
         >
           <.spinner /> Generating summary...
         </p>
-        
+
         <div :if={@summary} class="space-y-6 motion-safe:animate-enter">
           <p id="summary-text" class="whitespace-pre-line text-pretty leading-relaxed">
             {@summary.content["summary"]}
           </p>
-          
+
           <div id="summary-groups">
             <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
               Top questions
             </h3>
-            
+
             <p :if={@summary.content["question_groups"] == []} class="text-sm text-muted">
               No questions were asked.
             </p>
-            
+
             <ul class="space-y-2">
               <li :for={g <- @summary.content["question_groups"]} class="flex items-start gap-3">
                 <.badge tone="brand" class="mt-0.5 tabular-nums">{g["count"]}</.badge>
-                 <span>{g["label"]}</span>
+                <span>{g["label"]}</span>
               </li>
             </ul>
           </div>
-          
+
           <div id="summary-spikes">
             <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
               When questions spiked
             </h3>
-            
+
             <p :if={@summary.content["question_spikes"] == []} class="text-sm text-muted">
               No clear spike in questions.
             </p>
-            
+
             <ul class="space-y-1.5">
               <li :for={sp <- @summary.content["question_spikes"]} class="flex gap-3 text-sm">
                 <span class="font-mono tabular-nums text-muted">
                   {format_ms(sp["start_ms"])} - {format_ms(sp["end_ms"])}
                 </span>
-                 <span>{sp["count"]} questions</span>
+                <span>{sp["count"]} questions</span>
               </li>
             </ul>
           </div>
         </div>
       </.card>
-      
-      <.empty_state
+
+      <div
         :if={@speech.started_at && is_nil(@speech.ended_at)}
-        id="leaderboard-panel"
-        icon="hero-chat-bubble-left-right"
-        title="Live question leaderboard"
+        id="live-panels"
+        class="grid grid-cols-1 gap-4 lg:grid-cols-2"
       >
-        Questions from attendees will appear here.
-      </.empty_state>
+        <.empty_state
+          id="leaderboard-panel"
+          icon="hero-chat-bubble-left-right"
+          title="Live question leaderboard"
+        >
+          Questions from attendees will appear here.
+        </.empty_state>
+
+        <.card id="transcript-panel" title="Live transcript">
+          <SpeakerLive.transcript_list
+            id="panel-transcript"
+            segments={@streams.segments}
+            class="max-h-80 overflow-y-auto text-sm"
+          >
+            <:empty>
+              The transcript will appear here once the speaker starts talking.
+            </:empty>
+          </SpeakerLive.transcript_list>
+        </.card>
+      </div>
     </Layouts.app>
     """
   end
