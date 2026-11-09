@@ -40,5 +40,7 @@ config :phoenix_live_view,
 config :phoenix,
   sort_verified_routes_query_params: true
 
-# Disable automatic background index bootstrapper during tests
-config :takeaway, :elasticsearch, auto_setup: false
+# Disable automatic background index bootstrapper and question sync, and use Noop indexer during tests
+config :takeaway, :elasticsearch, auto_setup: false, auto_sync: false
+
+config :takeaway, :indexer, Takeaway.Indexer.Noop

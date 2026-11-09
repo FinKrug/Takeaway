@@ -58,7 +58,7 @@ defmodule Takeaway.Transcripts do
     with {:ok, artifact} <- get_or_create_artifact(speech_id) do
       saved =
         for seg <- segments, {:ok, row} <- [persist(artifact, seg, offset_ms)] do
-          Indexer.index_segment(row)
+          Indexer.index_segment(%{row | artifact: artifact})
           Phoenix.PubSub.broadcast(Takeaway.PubSub, topic(speech_id), {:transcript_segment, row})
           row
         end
