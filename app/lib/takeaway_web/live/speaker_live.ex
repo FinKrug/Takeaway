@@ -2,10 +2,15 @@ defmodule TakeawayWeb.SpeakerLive do
   @moduledoc """
   Speaker page: captures mic audio and shows the live transcript next to the
   audience's questions (stacked on phones, side by side from `lg`).
+
+  Slide controls (Prev/Next, arrow keys, presenter clickers) move the speech's current
+  slide while it is live. The slide is saved on the speech and broadcast on the speech
+  topic (`Takeaway.SpeechCreator.set_current_slide/3`), so attendees tag their questions
+  with it. Only the organizer who owns the speech can change it, checked on every event.
   """
   use TakeawayWeb, :live_view
 
-  alias Takeaway.{Questions, Speeches, Transcripts}
+  alias Takeaway.{Organizers, Questions, Slides, Speeches, SpeechCreator, Transcripts}
 
   @max_chunk_bytes 8_000_000
 
@@ -19,9 +24,12 @@ defmodule TakeawayWeb.SpeakerLive do
         if connected?(socket) do
           Transcripts.subscribe(speech.id)
           Questions.subscribe(speech.id)
+          # start/end and slide changes (also from the speaker's other tabs or devices)
+          SpeechCreator.subscribe(speech.id)
         end
 
         {segments, last} = speech.id |> Transcripts.list_segments() |> mark_turns()
+        slide_count = Slides.count_slides(speech.id)
 
         # `animate_questions` is false for the initial list (and after a reconnect), so
         # only questions that arrive live get the enter animation.
@@ -32,6 +40,10 @@ defmodule TakeawayWeb.SpeakerLive do
            recording: false,
            animate_questions: false,
            last_speaker: last
+         )
+         |> assign(
+           slide_count: slide_count,
+           current_slide: SpeechCreator.current_slide(speech, slide_count)
          )
          |> stream(:segments, segments)
          |> stream(:questions, Questions.list_questions(speech.id))}
@@ -66,9 +78,125 @@ defmodule TakeawayWeb.SpeakerLive do
   def handle_event("recording", %{"on" => on}, socket) when is_boolean(on),
     do: {:noreply, assign(socket, recording: on)}
 
+  def handle_event("next_slide", _params, socket) do
+    socket = refresh_slide_count(socket)
+
+    case socket.assigns.current_slide do
+      nil -> {:noreply, change_slide(socket, 1)}
+      n -> {:noreply, change_slide(socket, n + 1)}
+    end
+  end
+
+  def handle_event("prev_slide", _params, socket) do
+    socket = refresh_slide_count(socket)
+
+    case socket.assigns.current_slide do
+      nil -> {:noreply, socket}
+      n -> {:noreply, change_slide(socket, n - 1)}
+    end
+  end
+
+  # Jump to a slide; non-integer or out-of-range values are ignored.
+  def handle_event("set_slide", %{"slide" => slide}, socket) do
+    socket = refresh_slide_count(socket)
+    upper = slide_max(socket.assigns.slide_count)
+
+    case parse_slide(slide) do
+      {:ok, n} when n >= 1 and n <= upper -> {:noreply, change_slide(socket, n)}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  defp slide_max(0), do: SpeechCreator.max_slide()
+  defp slide_max(count), do: min(count, SpeechCreator.max_slide())
+
+  # Slides are extracted in the background after upload, so a count of 0 read at mount
+  # may be out of date: recount before relying on it.
+  defp refresh_slide_count(%{assigns: %{slide_count: 0, speech: speech}} = socket) do
+    case Slides.count_slides(speech.id) do
+      0 ->
+        socket
+
+      count ->
+        assign(socket,
+          slide_count: count,
+          current_slide: SpeechCreator.current_slide(speech, count)
+        )
+    end
+  end
+
+  defp refresh_slide_count(socket), do: socket
+
+  defp parse_slide(n) when is_integer(n), do: {:ok, n}
+
+  defp parse_slide(s) when is_binary(s) do
+    case Integer.parse(s) do
+      {n, ""} -> {:ok, n}
+      _ -> :error
+    end
+  end
+
+  defp parse_slide(_other), do: :error
+
+  # The client is never trusted: the speech must be live and still owned by this organizer.
+  defp change_slide(socket, n) do
+    %{speech: speech, slide_count: count, current_organizer: organizer} = socket.assigns
+
+    cond do
+      not slides_open?(speech) ->
+        socket
+
+      not Organizers.owns_speech?(organizer, speech) ->
+        put_flash(socket, :error, "You can't change the slides of this speech")
+
+      true ->
+        case SpeechCreator.set_current_slide(speech, n, count) do
+          {:ok, moved} ->
+            current = SpeechCreator.current_slide(moved, count)
+            assign(socket, speech: moved, current_slide: current)
+
+          {:error, _} ->
+            put_flash(socket, :error, "Could not change the slide")
+        end
+    end
+  end
+
+  defp slides_open?(%{started_at: %DateTime{}, ended_at: nil}), do: true
+  defp slides_open?(_speech), do: false
+
+  defp can_prev?(speech, current),
+    do: slides_open?(speech) and is_integer(current) and current > 1
+
+  defp can_next?(speech, current, count),
+    do: slides_open?(speech) and (is_nil(current) or current < slide_max(count))
+
+  defp slide_label(nil, _count), do: "No slide yet"
+  defp slide_label(n, 0), do: "Slide #{n}"
+  defp slide_label(n, count), do: "Slide #{n} of #{count}"
+
   @impl true
   def handle_info({:transcript_segment, seg}, socket),
     do: {:noreply, insert_segment(socket, seg)}
+
+  # Keep our own `current_slide`: the broadcast struct may carry a stale one.
+  def handle_info({event, %{id: id} = speech}, %{assigns: %{speech: %{id: id}}} = socket)
+      when event in [:speech_started, :speech_ended] do
+    current = %{socket.assigns.speech | started_at: speech.started_at, ended_at: speech.ended_at}
+    {:noreply, assign(socket, :speech, current)}
+  end
+
+  # From this or another tab of the speaker; the last change wins.
+  def handle_info({:slide_changed, id, n}, %{assigns: %{speech: %{id: id}}} = socket)
+      when is_integer(n) do
+    socket = refresh_slide_count(socket)
+    speech = %{socket.assigns.speech | current_slide: n}
+
+    {:noreply,
+     assign(socket,
+       speech: speech,
+       current_slide: SpeechCreator.current_slide(speech, socket.assigns.slide_count)
+     )}
+  end
 
   # A repeated event for the same question updates it in place (same DOM id).
   def handle_info({:question_created, q}, socket),
@@ -228,6 +356,56 @@ defmodule TakeawayWeb.SpeakerLive do
         </div>
       </.card>
 
+      <.card id="slide-controls">
+        <div
+          id="slide-keys"
+          phx-hook=".SlideKeys"
+          data-enabled={to_string(slides_open?(@speech))}
+          class="flex flex-wrap items-center gap-3"
+        >
+          <p
+            id="slide-position"
+            aria-live="polite"
+            class="w-full text-center text-xl font-semibold tabular-nums text-ink sm:w-auto sm:flex-1 sm:text-left"
+          >
+            {slide_label(@current_slide, @slide_count)}
+          </p>
+          <.button
+            id="slide-prev"
+            type="button"
+            variant="secondary"
+            size="lg"
+            phx-click="prev_slide"
+            disabled={not can_prev?(@speech, @current_slide)}
+            aria-label="Previous slide"
+            class="flex-1 sm:flex-none"
+          >
+            <.icon name="hero-chevron-left" class="size-5" /> Prev
+          </.button>
+          <.button
+            id="slide-next"
+            type="button"
+            size="lg"
+            phx-click="next_slide"
+            disabled={not can_next?(@speech, @current_slide, @slide_count)}
+            aria-label="Next slide"
+            class="flex-1 sm:flex-none"
+          >
+            Next <.icon name="hero-chevron-right" class="size-5" />
+          </.button>
+        </div>
+        <p
+          :if={is_nil(@speech.started_at)}
+          id="slide-controls-hint"
+          class="mt-3 text-sm text-muted"
+        >
+          Start the speech to change slides.
+        </p>
+        <p :if={@speech.ended_at} id="slide-controls-hint" class="mt-3 text-sm text-muted">
+          The speech has ended.
+        </p>
+      </.card>
+
       <div class="grid gap-4 lg:grid-cols-2 lg:items-start">
         <.card title="Live transcript" class="min-w-0">
           <.transcript_list id="transcript" segments={@streams.segments}>
@@ -315,6 +493,30 @@ defmodule TakeawayWeb.SpeakerLive do
           this.recorder = null
           this.pushEvent("recording", {on: false})
         }
+      }
+    </script>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".SlideKeys">
+      // Arrow keys and presenter clickers (PageUp/PageDown) move the slide,
+      // unless the speaker is typing somewhere.
+      export default {
+        mounted() {
+          this.onKey = (e) => {
+            if (this.el.dataset.enabled !== "true") return
+            if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+            const t = e.target
+            if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+            if (e.key === "ArrowRight" || e.key === "PageDown") {
+              e.preventDefault()
+              this.pushEvent("next_slide", {})
+            } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+              e.preventDefault()
+              this.pushEvent("prev_slide", {})
+            }
+          }
+          window.addEventListener("keydown", this.onKey)
+        },
+        destroyed() { window.removeEventListener("keydown", this.onKey) }
       }
     </script>
     """

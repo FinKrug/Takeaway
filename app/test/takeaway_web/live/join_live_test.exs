@@ -3,7 +3,7 @@ defmodule TakeawayWeb.JoinLiveTest do
   use TakeawayWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
 
-  alias Takeaway.{Accounts, Notes, Questions, Repo, SpeechCreator}
+  alias Takeaway.{Accounts, Notes, Questions, Repo, Slides, SpeechCreator}
   alias Takeaway.Notes.Note
   alias Takeaway.Questions.Question
 
@@ -211,6 +211,88 @@ defmodule TakeawayWeb.JoinLiveTest do
       html = lv |> form("#question-form", question: %{text: "Two?"}) |> render_submit()
       assert html =~ "wait a few seconds"
       assert [%{text: "One?"}] = Questions.list_questions(speech.id)
+    end
+  end
+
+  describe "current slide" do
+    setup :started
+
+    test "is shown, follows the speaker and tags submitted questions",
+         %{conn: conn, speech: speech} do
+      {:ok, _} = Slides.upsert_slides(speech.id, ["one", "two", "three", "four"])
+      {:ok, speech} = SpeechCreator.set_current_slide(speech, 2, 4)
+
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      assert has_element?(lv, "#join-current-slide", "Slide 2")
+      assert has_element?(lv, "#question-slide[value='2']")
+
+      # the attendee starts typing, then the speaker moves on
+      lv |> form("#question-form", question: %{text: "Half typed"}) |> render_change()
+      {:ok, _} = SpeechCreator.set_current_slide(speech, 3, 4)
+      assert has_element?(lv, "#join-current-slide", "Slide 3")
+      assert has_element?(lv, "#question-slide[value='3']")
+      assert lv |> element("#question-text") |> render() =~ "Half typed"
+
+      lv |> form("#question-form", question: %{text: "About this slide?"}) |> render_submit()
+      assert [%Question{slide_number: 3}] = Questions.list_questions(speech.id)
+      # the cleared form is prefilled again
+      assert has_element?(lv, "#question-slide[value='3']")
+    end
+
+    test "a slide the attendee picked is kept when the speaker moves on",
+         %{conn: conn, speech: speech} do
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      # no deck and no slide picked yet: nothing shown, field empty
+      refute has_element?(lv, "#join-current-slide")
+      refute has_element?(lv, "#question-slide[value]")
+
+      {:ok, speech} = SpeechCreator.set_current_slide(speech, 1, 0)
+      assert has_element?(lv, "#question-slide[value='1']")
+
+      lv |> form("#question-form", question: %{text: "Q", slide_number: "7"}) |> render_change()
+      {:ok, _} = SpeechCreator.set_current_slide(speech, 2, 0)
+      assert has_element?(lv, "#join-current-slide", "Slide 2")
+      assert has_element?(lv, "#question-slide[value='7']")
+
+      lv |> form("#question-form", question: %{text: "Back there?"}) |> render_submit()
+      assert [%Question{slide_number: 7}] = Questions.list_questions(speech.id)
+    end
+
+    test "slides extracted after joining cap the shown slide", %{conn: conn, speech: speech} do
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      {:ok, _} = Slides.upsert_slides(speech.id, ["one", "two", "three"])
+
+      # a speaker page with an out-of-date count sends a slide past the deck
+      {:ok, _} = SpeechCreator.set_current_slide(speech, 5, 0)
+      assert has_element?(lv, "#join-current-slide", "Slide 3")
+      assert has_element?(lv, "#question-slide[value='3']")
+    end
+
+    test "a filtered question shows its error and keeps the slide",
+         %{conn: conn, speech: speech} do
+      {:ok, speech} = SpeechCreator.set_current_slide(speech, 2, 0)
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+
+      html = lv |> form("#question-form", question: %{text: "Thanks everyone"}) |> render_submit()
+      assert html =~ "please ask a question about the talk"
+      assert has_element?(lv, "#question-slide[value='2']")
+      assert Questions.list_questions(speech.id) == []
+    end
+
+    test "another speech's slide changes are ignored", %{conn: conn, speech: speech} do
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      send(lv.pid, {:slide_changed, speech.id + 1, 5})
+      refute has_element?(lv, "#join-current-slide")
+    end
+
+    test "attendees can't change the slide", %{conn: conn, speech: speech} do
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      refute has_element?(lv, "#slide-controls")
+      refute has_element?(lv, "#slide-next")
+
+      # the speaker page refuses anyone but the owning organizer
+      assert {:error, {:redirect, _}} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      assert Takeaway.Speeches.get_speech!(speech.id).current_slide == nil
     end
   end
 

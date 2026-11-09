@@ -3,7 +3,16 @@ defmodule TakeawayWeb.SpeakerLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Takeaway.{Accounts, Events, Questions, Speeches, Transcripts}
+  alias Takeaway.{
+    Accounts,
+    Events,
+    Organizers,
+    Questions,
+    Slides,
+    SpeechCreator,
+    Speeches,
+    Transcripts
+  }
 
   setup %{conn: conn} do
     organizer = organizer_fixture()
@@ -15,7 +24,7 @@ defmodule TakeawayWeb.SpeakerLiveTest do
 
     Application.put_env(:takeaway, :stt, Takeaway.FakeSTT)
     on_exit(fn -> Application.delete_env(:takeaway, :stt) end)
-    %{speech: speech, conn: log_in_organizer(conn, organizer)}
+    %{speech: speech, event: event, conn: log_in_organizer(conn, organizer)}
   end
 
   test "renders existing segments and shows new ones live", %{conn: conn, speech: speech} do
@@ -180,6 +189,162 @@ defmodule TakeawayWeb.SpeakerLiveTest do
     end
   end
 
+  describe "slide controls" do
+    test "are disabled until the speech starts and after it ends",
+         %{conn: conn, speech: speech} do
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      assert has_element?(view, "#slide-controls-hint", "Start the speech")
+      assert has_element?(view, "#slide-next[disabled]")
+      assert has_element?(view, "#slide-prev[disabled]")
+
+      # the server ignores the event too
+      render_hook(view, "next_slide", %{})
+      assert current_slide(speech) == nil
+
+      {:ok, started} = SpeechCreator.start_speech(speech)
+      refute has_element?(view, "#slide-controls-hint")
+      refute has_element?(view, "#slide-next[disabled]")
+
+      {:ok, _} = SpeechCreator.end_speech(started)
+      assert has_element?(view, "#slide-controls-hint", "ended")
+      assert has_element?(view, "#slide-next[disabled]")
+      render_hook(view, "next_slide", %{})
+      assert current_slide(speech) == nil
+    end
+
+    test "next/prev clamp to the deck, persist and broadcast", %{conn: conn} = ctx do
+      %{speech: speech} = start(ctx)
+      {:ok, _} = Slides.upsert_slides(speech.id, ["one", "two", "three"])
+      SpeechCreator.subscribe(speech.id)
+      id = speech.id
+
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      assert has_element?(view, "#slide-position", "Slide 1 of 3")
+      assert has_element?(view, "#slide-prev[disabled]")
+
+      view |> element("#slide-next") |> render_click()
+      assert has_element?(view, "#slide-position", "Slide 2 of 3")
+      assert_receive {:slide_changed, ^id, 2}
+      assert current_slide(speech) == 2
+
+      view |> element("#slide-next") |> render_click()
+      assert has_element?(view, "#slide-next[disabled]")
+      render_hook(view, "next_slide", %{})
+      assert has_element?(view, "#slide-position", "Slide 3 of 3")
+      assert current_slide(speech) == 3
+
+      view |> element("#slide-prev") |> render_click()
+      render_hook(view, "prev_slide", %{})
+      render_hook(view, "prev_slide", %{})
+      assert has_element?(view, "#slide-position", "Slide 1 of 3")
+      assert current_slide(speech) == 1
+
+      # survives a refresh
+      render_hook(view, "next_slide", %{})
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      assert has_element?(view, "#slide-position", "Slide 2 of 3")
+    end
+
+    test "without extracted slides Next is unbounded", %{conn: conn} = ctx do
+      %{speech: speech} = start(ctx)
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      assert has_element?(view, "#slide-position", "No slide yet")
+      assert has_element?(view, "#slide-prev[disabled]")
+
+      for _ <- 1..12, do: render_hook(view, "next_slide", %{})
+      assert has_element?(view, "#slide-position", "Slide 12")
+      refute render(view) =~ "Slide 12 of"
+      refute has_element?(view, "#slide-next[disabled]")
+      assert current_slide(speech) == 12
+    end
+
+    test "set_slide ignores non-integer and out-of-range values", %{conn: conn} = ctx do
+      %{speech: speech} = start(ctx)
+      {:ok, _} = Slides.upsert_slides(speech.id, ["one", "two", "three"])
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+
+      for bad <- ["abc", "2.5", "0", "-1", "4", nil, %{"x" => 1}],
+          do: render_hook(view, "set_slide", %{"slide" => bad})
+
+      assert has_element?(view, "#slide-position", "Slide 1 of 3")
+      assert current_slide(speech) == nil
+
+      render_hook(view, "set_slide", %{"slide" => "3"})
+      assert has_element?(view, "#slide-position", "Slide 3 of 3")
+      assert current_slide(speech) == 3
+    end
+
+    test "slides extracted after the page opened bound the controls", %{conn: conn} = ctx do
+      %{speech: speech} = start(ctx)
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      assert has_element?(view, "#slide-position", "No slide yet")
+
+      {:ok, _} = Slides.upsert_slides(speech.id, ["one", "two", "three"])
+
+      render_hook(view, "next_slide", %{})
+      assert has_element?(view, "#slide-position", "Slide 2 of 3")
+
+      render_hook(view, "set_slide", %{"slide" => "5"})
+      assert has_element?(view, "#slide-position", "Slide 2 of 3")
+
+      for _ <- 1..3, do: render_hook(view, "next_slide", %{})
+      assert has_element?(view, "#slide-position", "Slide 3 of 3")
+      assert has_element?(view, "#slide-next[disabled]")
+      assert current_slide(speech) == 3
+    end
+
+    test "a stale count from mount doesn't let set_slide pass the deck", %{conn: conn} = ctx do
+      %{speech: speech} = start(ctx)
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      {:ok, _} = Slides.upsert_slides(speech.id, ["one", "two"])
+
+      render_hook(view, "set_slide", %{"slide" => "7"})
+      assert current_slide(speech) == nil
+      assert has_element?(view, "#slide-position", "Slide 1 of 2")
+    end
+
+    test "without a deck slides stop at the maximum", %{conn: conn} = ctx do
+      %{speech: speech} = start(ctx)
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      max = SpeechCreator.max_slide()
+
+      for huge <- ["1000", "99999999999999999999", 10_000_000_000],
+          do: render_hook(view, "set_slide", %{"slide" => huge})
+
+      assert has_element?(view, "#slide-position", "No slide yet")
+      assert current_slide(speech) == nil
+
+      render_hook(view, "set_slide", %{"slide" => to_string(max)})
+      assert has_element?(view, "#slide-position", "Slide #{max}")
+      assert has_element?(view, "#slide-next[disabled]")
+      render_hook(view, "next_slide", %{})
+      assert current_slide(speech) == max
+    end
+
+    test "follows changes made in another tab", %{conn: conn} = ctx do
+      %{speech: speech} = start(ctx)
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      {:ok, _} = SpeechCreator.set_current_slide(speech, 5, 0)
+      assert has_element?(view, "#slide-position", "Slide 5")
+
+      # another speech's change is ignored
+      send(view.pid, {:slide_changed, speech.id + 1, 9})
+      render_hook(view, "next_slide", %{})
+      assert has_element?(view, "#slide-position", "Slide 6")
+    end
+
+    test "an organizer who no longer owns the speech can't change it",
+         %{conn: conn, event: event} = ctx do
+      %{speech: speech} = start(ctx)
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      {:ok, _} = Organizers.claim_event(event, organizer_fixture())
+
+      html = render_hook(view, "next_slide", %{})
+      assert html =~ "can&#39;t change the slides"
+      assert current_slide(speech) == nil
+    end
+  end
+
   test "unknown speech redirects", %{conn: conn} do
     assert {:error, {:redirect, %{to: "/"}}} = live(conn, ~p"/speeches/0/speak")
   end
@@ -195,4 +360,11 @@ defmodule TakeawayWeb.SpeakerLiveTest do
       assert {:error, {:redirect, %{to: "/"}}} = live(conn, ~p"/speeches/#{speech.id}/speak")
     end
   end
+
+  defp start(%{speech: speech}) do
+    {:ok, speech} = SpeechCreator.start_speech(speech)
+    %{speech: speech}
+  end
+
+  defp current_slide(speech), do: Speeches.get_speech!(speech.id).current_slide
 end

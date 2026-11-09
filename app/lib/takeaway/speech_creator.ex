@@ -1,12 +1,14 @@
 defmodule Takeaway.SpeechCreator do
   @moduledoc """
   Creates a speech together with its uploaded artifacts (plan/transcript and
-  slides), and announces speech starts over PubSub.
+  slides), and announces speech starts, ends and slide changes over PubSub.
   """
   alias Takeaway.{Events, Repo, Slides, Speeches}
+  alias Takeaway.Speeches.Speech
 
   @topic_prefix "speech:"
   @text_exts ~w(.txt .md)
+  @max_slide 999
 
   def topic(speech_id), do: @topic_prefix <> to_string(speech_id)
 
@@ -146,6 +148,41 @@ defmodule Takeaway.SpeechCreator do
     with {:ok, ended} <- Speeches.end_speech(speech) do
       Phoenix.PubSub.broadcast(Takeaway.PubSub, topic(speech.id), {:speech_ended, ended})
       {:ok, ended}
+    end
+  end
+
+  @doc """
+  The slide the speech is on, given its deck of `count` slides (0 when no slides were
+  extracted): the stored `current_slide` (capped at `count` when there is a deck), or 1
+  when there is a deck but no slide was picked yet. `nil` when no slide is known.
+  """
+  def current_slide(%{current_slide: n}, count) when is_integer(n) and n >= 1,
+    do: if(count > 0, do: min(n, count), else: n)
+
+  def current_slide(_speech, count) when count > 0, do: 1
+  def current_slide(_speech, _count), do: nil
+
+  @doc "Highest slide number a speech can be on (the bound when no deck was extracted)."
+  def max_slide, do: @max_slide
+
+  @doc """
+  Moves the speech to slide `n`, clamped to 1..`count` (1..`max_slide/0` when `count` is
+  0, i.e. no extracted deck), saves it and broadcasts `{:slide_changed, speech_id, n}` on
+  the speech topic. Moving to the slide it is already on is a no-op without a broadcast.
+  Callers check that the user may present the speech.
+  """
+  def set_current_slide(%Speech{} = speech, n, count) when is_integer(n) do
+    upper = if count > 0, do: min(count, @max_slide), else: @max_slide
+    n = n |> max(1) |> min(upper)
+
+    if n == speech.current_slide do
+      {:ok, speech}
+    else
+      with {:ok, moved} <- speech |> Ecto.Changeset.change(current_slide: n) |> Repo.update() do
+        msg = {:slide_changed, speech.id, n}
+        Phoenix.PubSub.broadcast(Takeaway.PubSub, topic(speech.id), msg)
+        {:ok, moved}
+      end
     end
   end
 end

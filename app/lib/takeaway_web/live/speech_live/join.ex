@@ -8,6 +8,9 @@ defmodule TakeawayWeb.SpeechLive.Join do
   * Private notes for this speech (one per attendee), autosaved with a debounce.
   * Questions: everyone's questions streamed live (`Questions` PubSub), a form to ask one
     while the speech is live, and Retract on the attendee's own questions.
+  * The speaker's current slide (`{:slide_changed, speech_id, n}` on the `SpeechCreator`
+    topic) is shown and prefills the form's optional slide field, so questions are tagged
+    with it. Once the attendee picks another slide (or clears it) their choice is kept.
   * On phones Notes and Questions are two client-side tabs; from `md:` side by side.
 
   The attendee is the anonymous user whose id `TakeawayWeb.AttendeeSession` stores as
@@ -15,7 +18,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
   """
   use TakeawayWeb, :live_view
 
-  alias Takeaway.{Accounts, Notes, Questions, Speeches, SpeechCreator, Summaries, Tickets}
+  alias Takeaway.{Accounts, Notes, Questions, Slides, Speeches, SpeechCreator, Summaries, Tickets}
   alias Takeaway.Accounts.User
   alias Takeaway.Notes.Note
 
@@ -55,6 +58,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
       note_form: to_form(Note.changeset(%Note{}, %{})),
       note_status: :idle,
       question_form: question_form(%{}),
+      slide_count: 0,
+      current_slide: nil,
       question_ids: MapSet.new(),
       my_question_ids: MapSet.new(),
       last_question_at: nil
@@ -78,6 +83,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
 
     # Re-read on every mount, so a reconnect catches up on anything missed.
     questions = Questions.list_questions(speech.id)
+    slide_count = Slides.count_slides(speech.id)
+    current_slide = SpeechCreator.current_slide(speech, slide_count)
 
     {:ok,
      socket
@@ -89,6 +96,9 @@ defmodule TakeawayWeb.SpeechLive.Join do
        user_id: user_id,
        note_form: to_form(Note.changeset(note, %{})),
        note_status: if(note.id, do: :saved, else: :idle),
+       slide_count: slide_count,
+       current_slide: current_slide,
+       question_form: question_form(slide_params(current_slide)),
        question_ids: MapSet.new(questions, & &1.id),
        my_question_ids:
          questions |> Enum.filter(&(user_id && &1.user_id == user_id)) |> MapSet.new(& &1.id)
@@ -182,6 +192,10 @@ defmodule TakeawayWeb.SpeechLive.Join do
     |> to_form(as: :question)
   end
 
+  # Prefills the optional slide field with the speaker's current slide.
+  defp slide_params(nil), do: %{}
+  defp slide_params(n), do: %{"slide_number" => n}
+
   defp question_error(socket, params, message) do
     form =
       params
@@ -211,7 +225,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
       |> track_question(question)
       |> stream_insert(:questions, item(question, true))
       |> assign(
-        question_form: question_form(%{}),
+        question_form: question_form(slide_params(socket.assigns.current_slide)),
         last_question_at: System.monotonic_time(:millisecond)
       )
     else
@@ -307,6 +321,31 @@ defmodule TakeawayWeb.SpeechLive.Join do
     if MapSet.member?(socket.assigns.question_ids, question.id),
       do: {:noreply, stream_insert(socket, :questions, item(question, false))},
       else: {:noreply, socket}
+  end
+
+  # The form's slide follows the speaker unless the attendee changed it (keeps the text).
+  def handle_info({:slide_changed, id, n}, %{assigns: %{speech: %{id: id}}} = socket)
+      when is_integer(n) do
+    # Slides may have been extracted since mount; never show a slide past a known deck.
+    count =
+      case socket.assigns.slide_count do
+        0 -> Slides.count_slides(id)
+        known -> known
+      end
+
+    n = SpeechCreator.current_slide(%{current_slide: n}, count)
+    %{current_slide: old, question_form: form} = socket.assigns
+    follows? = to_string(form.params["slide_number"]) == to_string(old)
+
+    socket =
+      if follows? do
+        params = Map.put(form.params, "slide_number", n)
+        assign(socket, :question_form, question_form(params, form.source.action))
+      else
+        socket
+      end
+
+    {:noreply, assign(socket, slide_count: count, current_slide: n)}
   end
 
   # Anything else on the speech topics (future events) is ignored, never a crash.
@@ -427,6 +466,9 @@ defmodule TakeawayWeb.SpeechLive.Join do
           >
             <span class="text-danger"><.live_dot class="size-2.5" /></span>
             <p class="font-medium">The speech is live.</p>
+            <.badge :if={@current_slide} id="join-current-slide" tone="outline" class="ml-auto">
+              Slide {@current_slide}
+            </.badge>
           </.card>
 
           <.card :if={@speech.ended_at} id="join-ended" tone="sunken" class="flex items-center gap-3">

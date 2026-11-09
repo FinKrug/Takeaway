@@ -29,6 +29,11 @@ defmodule Takeaway.Slides do
     Repo.all(from s in Slide, where: s.speech_id == ^speech_id, order_by: [asc: s.slide_number])
   end
 
+  @doc "Number of stored slides of a speech (0 when none were extracted)."
+  def count_slides(speech_id) do
+    Repo.aggregate(from(s in Slide, where: s.speech_id == ^speech_id), :count)
+  end
+
   def get_slide(speech_id, slide_number),
     do: Repo.get_by(Slide, speech_id: speech_id, slide_number: slide_number)
 
