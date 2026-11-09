@@ -54,6 +54,9 @@ defmodule Takeaway.Questions do
   Submits a question from `user` to `speech`, stamped with the offset from the speech start
   (0 if not started). Runs the filter hook first (see `filter_text/1`); on success broadcasts
   `{:question_created, question}` on `speech:<id>`.
+  Callers supplying an automatic slide default set `slide_source: "current"`;
+  otherwise an explicit slide number is manual. The LiveView derives this source
+  on the server rather than trusting a submitted provenance parameter.
   """
   def submit_question(%Speech{} = speech, %User{} = user, attrs, now \\ DateTime.utc_now()) do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
@@ -69,7 +72,11 @@ defmodule Takeaway.Questions do
              "speech_id" => speech.id
            }) do
       # Only local data is used here; Elasticsearch enrichment runs off the request path.
-      question = Takeaway.Questions.Tagging.attach_current(question, speech)
+      question =
+        Takeaway.Questions.Tagging.attach_current(question, speech,
+          slide_source: attrs["slide_source"]
+        )
+
       broadcast(speech.id, {:question_created, question})
       {:ok, question}
     end
