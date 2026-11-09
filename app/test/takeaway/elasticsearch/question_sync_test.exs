@@ -17,7 +17,7 @@ defmodule Takeaway.Elasticsearch.QuestionSyncTest do
 
   describe "QuestionSync initialization and event handling" do
     test "starts and subscribes to global questions topic when auto_sync is enabled" do
-      {:ok, pid} = QuestionSync.start_link(auto_sync: true)
+      pid = start_supervised!({QuestionSync, auto_sync: true, name: nil})
       assert Process.alive?(pid)
     end
 

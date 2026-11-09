@@ -11,6 +11,11 @@ defmodule Takeaway.Elasticsearch.Indexer do
 
   @impl true
   def index_segment(segment) do
+    Task.start(fn -> do_index_segment(segment) end)
+    :ok
+  end
+
+  defp do_index_segment(segment) do
     speech_id = resolve_speech_id(segment)
 
     doc = %{
