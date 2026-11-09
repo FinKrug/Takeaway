@@ -13,3 +13,5 @@ npm-debug.log*
 # Local agent tooling: per-task worktrees and personal workflow scripts
 .grok/worktrees/
 .claude/workflows/work-my-tasks.js
+a11y/node_modules/
+a11y/test-results/
