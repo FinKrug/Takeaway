@@ -46,7 +46,7 @@ Tell the person what you did before you go deeper.
 
 ## 4. Fix, ship, confirm
 
-Make the smallest change that removes the cause. For repo changes, push and follow the `ship` skill through step 5: verify the built SHA, or the unchanged image tag plus the intended configuration for a deliberately skipped build. For a non-git Secret correction, verify the app's authenticated operation without printing the credential. Confirm `issues` no longer lists the problem.
+Make the smallest change that removes the cause. For repo changes, open a pull request and follow the `ship` skill through step 7 (Gitar review, merge, build, rollout, URL, Dash0): verify the built SHA, or the unchanged image tag plus the intended configuration for a deliberately skipped build. For a non-git Secret correction, verify the app's authenticated operation without printing the credential. Confirm `issues` no longer lists the problem.
 
 ## 5. When it's not obvious
 
