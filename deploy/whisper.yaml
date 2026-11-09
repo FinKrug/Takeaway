@@ -1,6 +1,6 @@
 # In-cluster speech-to-text. Speaches (faster-whisper) speaks the OpenAI
 # /v1/audio/transcriptions API the app already calls. One replica, CPU only,
-# Whisper small. The model is downloaded on startup into an emptyDir so it
+# Distil-Whisper small (English). The model is downloaded on startup into an emptyDir so it
 # does not take a PVC from the team budget.
 apiVersion: apps/v1
 kind: Deployment
@@ -27,7 +27,7 @@ spec:
           env:
             - name: WHISPER__INFERENCE_DEVICE
               value: cpu
-            # int8 keeps the small model inside a 2Gi limit on CPU.
+            # int8 keeps the model inside a 2Gi limit on CPU.
             - name: WHISPER__COMPUTE_TYPE
               value: int8
             - name: WHISPER__CPU_THREADS
@@ -36,7 +36,7 @@ spec:
             - name: STT_MODEL_TTL
               value: "-1"
             - name: PRELOAD_MODELS
-              value: '["Systran/faster-whisper-small"]'
+              value: '["Systran/faster-distil-whisper-small.en"]'
             # The Gradio UI is unused; the app talks to the HTTP API.
             - name: ENABLE_UI
               value: "false"

@@ -61,7 +61,7 @@ failure leaves the saved question and its local context intact. Set
 | `DATABASE_URL` | Postgres URL (from Secret `db-app` in the cluster). |
 | `SECRET_KEY_BASE` | Phoenix cookie signing (Secret `app-credentials`). |
 | `PHX_HOST`, `PORT` | Public host and listen port (8080 in the image). |
-| `STT_URL`, `STT_API_KEY`, `STT_MODEL` | Speech-to-text endpoint (default model `whisper-1`). In the cluster these point at Service `whisper` (`Systran/faster-whisper-small`). |
+| `STT_URL`, `STT_API_KEY`, `STT_MODEL` | Speech-to-text endpoint (default model `whisper-1`). In the cluster these point at Service `whisper` (`Systran/faster-distil-whisper-small.en`). |
 | `DIARIZER_URL` | Speaker labels: the diarizer's `/v1/diarize` (Service `diarizer` in the cluster). Tune it with `MATCH_THRESHOLD` on the diarizer (default 0.7: raise it if two people share a label, lower it if one person gets several). `STT_DIARIZE=true` instead asks the STT provider for labels, if it supports them (Speaches and `whisper-1` don't). |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Claude for summaries (optional). |
 | `POOL_SIZE` | Ecto pool size. |
