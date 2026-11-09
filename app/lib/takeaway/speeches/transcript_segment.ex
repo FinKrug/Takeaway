@@ -1,4 +1,12 @@
 defmodule Takeaway.Speeches.TranscriptSegment do
+  @moduledoc """
+  One timed piece of a speech transcript.
+
+  `speaker` is an optional diarization label (for example `"SPEAKER_00"`) as
+  returned by the STT provider when diarization is enabled (`STT_DIARIZE=true`).
+  It is `nil` when diarization is off or the provider gave no label. Labels are
+  opaque and only stable within one transcription response.
+  """
   use Ecto.Schema
   import Ecto.Changeset
 
