@@ -157,8 +157,15 @@ defmodule Takeaway.DomainTest do
     end
   end
 
-  test "deleting an event cascades to speeches", %{event: event, speech: speech} do
+  test "deleting an event keeps its speeches, without a conference", %{
+    event: event,
+    speech: speech
+  } do
     Repo.delete!(event)
-    refute Speeches.get_speech(speech.id)
+    assert %{event_id: nil} = Speeches.get_speech(speech.id)
+  end
+
+  test "a speech needs no event" do
+    assert {:ok, %{event_id: nil}} = Speeches.create_speech(%{title: "Standalone"})
   end
 end

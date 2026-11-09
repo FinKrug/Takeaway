@@ -87,6 +87,45 @@ defmodule TakeawayWeb.SpeechLiveTest do
     refute has_element?(lv, "#transcript-panel")
   end
 
+  test "a speech can join an existing conference, a new one, or none", %{
+    conn: conn,
+    organizer: organizer
+  } do
+    {:ok, conf} = Takeaway.Events.create_event(%{name: "ElixirConf"}, organizer)
+    {:ok, _} = Takeaway.Events.create_event(%{name: "Someone else's"}, organizer_fixture())
+
+    {:ok, lv, html} = live(conn, ~p"/speeches/new")
+    assert html =~ "ElixirConf"
+    refute html =~ "Someone else"
+
+    submit = fn speech ->
+      {:ok, lv, _} = live(conn, ~p"/speeches/new")
+      lv |> form("#speech-form", speech: speech) |> render_submit()
+      Takeaway.Repo.get_by!(Takeaway.Speeches.Speech, title: speech.title)
+    end
+
+    assert submit.(%{title: "Standalone", event: ""}).event_id == nil
+    assert submit.(%{title: "In conf", event: conf.id}).event_id == conf.id
+
+    lv |> form("#speech-form", speech: %{event: "new"}) |> render_change()
+
+    html =
+      lv |> form("#speech-form", speech: %{title: "New conf", event_name: " "}) |> render_submit()
+
+    assert html =~ "can&#39;t be blank"
+
+    lv
+    |> form("#speech-form", speech: %{title: "New conf", event_name: "LiveView Days"})
+    |> render_submit()
+
+    speech = Takeaway.Repo.get_by!(Takeaway.Speeches.Speech, title: "New conf")
+
+    assert %{name: "LiveView Days", organizer_id: id} =
+             Takeaway.Events.get_event!(speech.event_id)
+
+    assert id == organizer.id
+  end
+
   test "title is required", %{conn: conn} do
     {:ok, lv, _} = live(conn, ~p"/speeches/new")
     html = lv |> form("#speech-form", speech: %{title: " "}) |> render_submit()
@@ -183,7 +222,9 @@ defmodule TakeawayWeb.SpeechLiveTest do
 
   describe "ticket gate on join" do
     setup do
-      {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Gated"})
+      {:ok, speech} =
+        SpeechCreator.create_speech(%{"title" => "Gated"}, [], event: {:new, "Conf"})
+
       event = Takeaway.Events.get_event!(speech.event_id)
       {:ok, ticket} = Tickets.create_ticket(event)
       %{speech: speech, ticket: ticket}
@@ -192,6 +233,13 @@ defmodule TakeawayWeb.SpeechLiveTest do
     test "events without tickets still open freely", %{conn: conn} do
       {:ok, other} = Takeaway.Events.create_event(%{name: "Free"})
       {:ok, speech} = Speeches.create_speech(%{title: "Open", event_id: other.id})
+      {:ok, _lv, html} = live_join(conn, ~p"/join/#{speech.join_code}")
+      assert html =~ "Waiting"
+    end
+
+    test "speeches without a conference open freely", %{conn: conn} do
+      {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Standalone"})
+      assert speech.event_id == nil
       {:ok, _lv, html} = live_join(conn, ~p"/join/#{speech.join_code}")
       assert html =~ "Waiting"
     end
@@ -237,7 +285,11 @@ defmodule TakeawayWeb.SpeechLiveTest do
       conn: conn,
       organizer: organizer
     } do
-      {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Mine"}, [], organizer: organizer)
+      {:ok, speech} =
+        SpeechCreator.create_speech(%{"title" => "Mine"}, [],
+          organizer: organizer,
+          event: {:new, "Conf"}
+        )
 
       {:ok, _lv, html} = live(conn, ~p"/speeches/#{speech.join_code}")
       assert html =~ ~s(href="/events/#{speech.event_id}/tickets")
@@ -250,6 +302,16 @@ defmodule TakeawayWeb.SpeechLiveTest do
 
       anon = Phoenix.ConnTest.build_conn()
       assert redirected_to(get(anon, ~p"/speeches/#{speech.join_code}")) == ~p"/organizers/log_in"
+    end
+
+    test "a speech without a conference has no tickets link", %{
+      conn: conn,
+      organizer: organizer
+    } do
+      {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Mine"}, [], organizer: organizer)
+      {:ok, lv, _html} = live(conn, ~p"/speeches/#{speech.join_code}")
+      assert has_element?(lv, "#speak-link")
+      refute has_element?(lv, "#tickets-link")
     end
 
     test "the join page stays public", %{organizer: organizer} do

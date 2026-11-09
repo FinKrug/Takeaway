@@ -12,7 +12,10 @@ defmodule Takeaway.Speeches do
   def get_speech!(id), do: Repo.get!(Speech, id)
   def get_speech_by_join_code(code), do: Repo.get_by(Speech, join_code: String.upcase(code))
 
-  def create_speech(attrs), do: %Speech{} |> Speech.changeset(attrs) |> Repo.insert()
+  @doc "Creates a speech owned by `organizer` (or by no one)."
+  def create_speech(attrs, organizer \\ nil) do
+    %Speech{organizer_id: organizer && organizer.id} |> Speech.changeset(attrs) |> Repo.insert()
+  end
 
   def update_speech(%Speech{} = speech, attrs),
     do: speech |> Speech.changeset(attrs) |> Repo.update()

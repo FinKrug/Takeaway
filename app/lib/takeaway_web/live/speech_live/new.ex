@@ -1,16 +1,28 @@
 defmodule TakeawayWeb.SpeechLive.New do
   use TakeawayWeb, :live_view
 
-  alias Takeaway.{Accounts, SpeechCreator}
+  alias Takeaway.{Accounts, Events, SpeechCreator}
+
+  # The Conference choice that creates a new event named in the "event_name" field.
+  @new_event "new"
 
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(:page_title, "New speech")
+     |> assign(:events, Events.list_events_for_organizer(socket.assigns.current_organizer))
      |> assign(
        :form,
-       to_form(%{"title" => "", "description" => "", "tags" => "", "speaker_email" => ""},
+       to_form(
+         %{
+           "title" => "",
+           "description" => "",
+           "tags" => "",
+           "speaker_email" => "",
+           "event" => "",
+           "event_name" => ""
+         },
          as: :speech
        )
      )
@@ -36,6 +48,7 @@ defmodule TakeawayWeb.SpeechLive.New do
     speaker_email = String.trim(params["speaker_email"] || "")
 
     with :ok <- check_title(title),
+         {:ok, event} <- pick_event(params["event"], params["event_name"]),
          {:ok, speaker_id} <- find_speaker(speaker_email) do
       files = consume("plan", :plan, socket) ++ consume("slides", :slides, socket)
 
@@ -46,7 +59,9 @@ defmodule TakeawayWeb.SpeechLive.New do
         "speaker_id" => speaker_id
       }
 
-      case SpeechCreator.create_speech(attrs, files, organizer: socket.assigns.current_organizer) do
+      opts = [organizer: socket.assigns.current_organizer, event: event]
+
+      case SpeechCreator.create_speech(attrs, files, opts) do
         {:ok, speech} ->
           {:noreply, push_navigate(socket, to: ~p"/speeches/#{speech.join_code}")}
 
@@ -67,6 +82,19 @@ defmodule TakeawayWeb.SpeechLive.New do
 
   defp check_title(""), do: {:error, :title, "can't be blank"}
   defp check_title(_), do: :ok
+
+  # The speech's conference: none (""), one of the organizer's events (its id), or a new one.
+  defp pick_event(@new_event, name) do
+    case String.trim(name || "") do
+      "" -> {:error, :event_name, "can't be blank"}
+      name -> {:ok, {:new, name}}
+    end
+  end
+
+  defp pick_event(id, _name), do: {:ok, id}
+
+  defp event_options(events),
+    do: [{"None", ""}] ++ Enum.map(events, &{&1.name, &1.id}) ++ [{"New conference…", @new_event}]
 
   # An optional speaker email links the speech to that speaker's user (created without a
   # password if new; they claim it through an invite link the organizer creates on the
@@ -125,6 +153,20 @@ defmodule TakeawayWeb.SpeechLive.New do
             label="Tags"
             placeholder="elixir, liveview, realtime"
             hint="Comma separated."
+          />
+          <.input
+            field={@form[:event]}
+            type="select"
+            label="Conference"
+            options={event_options(@events)}
+            hint="The conference this talk is part of, if any."
+          />
+          <.input
+            :if={@form[:event].value == "new"}
+            field={@form[:event_name]}
+            label="Conference name"
+            placeholder="ElixirConf EU 2026"
+            required
           />
         </.card>
 

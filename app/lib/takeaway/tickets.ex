@@ -73,9 +73,12 @@ defmodule Takeaway.Tickets do
     do: Repo.exists?(from t in Ticket, where: t.event_id == ^event_id)
 
   @doc """
-  Checks `code` against the event's tickets. Events without tickets always pass.
+  Checks `code` against the event's tickets. Events without tickets, and speeches
+  without an event (`nil`), always pass.
   Returns `:ok`, `{:error, :ticket_required}` or `{:error, :invalid_ticket}`.
   """
+  def validate_for_event(nil, _code), do: :ok
+
   def validate_for_event(event_id, code) do
     cond do
       not event_uses_tickets?(event_id) -> :ok

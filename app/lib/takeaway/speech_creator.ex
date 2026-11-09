@@ -36,8 +36,13 @@ defmodule Takeaway.SpeechCreator do
   "plan" or "slides". Copies each file into the uploads dir and saves an
   artifact. Everything happens in one transaction.
 
-  With `opts[:organizer]` the speech joins that organizer's event (created on
-  first use), so only they can run it. Without one it joins a shared, unowned event.
+  `opts[:organizer]` becomes the speech's owner, so only they can run it.
+
+  `opts[:event]` picks the conference (event) the speech belongs to:
+    * `nil` (the default): none, a standalone talk;
+    * an event id (integer or string): one of the organizer's own events.
+      Any other id fails with `{:error, :event_not_found}`;
+    * `{:new, name}`: a new event with that name, owned by the organizer.
 
   After the transaction commits, the text of each slides artifact is extracted
   in the background (`Takeaway.Slides.extract_async/1`); this function doesn't
@@ -55,18 +60,24 @@ defmodule Takeaway.SpeechCreator do
 
   defp insert_speech(attrs, files, opts) do
     Repo.transaction(fn ->
-      event = event_for(opts[:organizer])
+      organizer = opts[:organizer]
+
+      event_id =
+        case event_for(opts[:event], organizer) do
+          {:ok, event} -> event && event.id
+          {:error, reason} -> Repo.rollback(reason)
+        end
 
       speech_attrs =
         attrs
         |> Map.new(fn {k, v} -> {to_string(k), v} end)
-        |> Map.put("event_id", event.id)
+        |> Map.put("event_id", event_id)
         |> Map.update("tags", [], fn
           t when is_binary(t) -> parse_tags(t)
           t -> t
         end)
 
-      with {:ok, speech} <- Speeches.create_speech(speech_attrs),
+      with {:ok, speech} <- Speeches.create_speech(speech_attrs, organizer),
            :ok <- save_files(speech, files) do
         speech
       else
@@ -108,25 +119,20 @@ defmodule Takeaway.SpeechCreator do
     })
   end
 
-  defp event_for(nil) do
-    case Enum.find(Events.list_events(), &is_nil(&1.organizer_id)) do
-      nil ->
-        {:ok, event} = Events.create_event(%{name: "Open Talks"})
-        event
+  defp event_for(nil, _organizer), do: {:ok, nil}
+  defp event_for("", _organizer), do: {:ok, nil}
 
-      event ->
-        event
+  defp event_for({:new, name}, organizer) when is_binary(name) do
+    case Events.create_event(%{name: String.trim(name)}, organizer) do
+      {:ok, event} -> {:ok, event}
+      {:error, _} -> {:error, :invalid_event}
     end
   end
 
-  defp event_for(organizer) do
-    case Events.list_events_for_organizer(organizer) do
-      [] ->
-        {:ok, event} = Events.create_event(%{name: "Open Talks"}, organizer)
-        event
-
-      [event | _] ->
-        event
+  defp event_for(id, organizer) do
+    case Events.get_event_for_organizer(id, organizer) do
+      nil -> {:error, :event_not_found}
+      event -> {:ok, event}
     end
   end
 

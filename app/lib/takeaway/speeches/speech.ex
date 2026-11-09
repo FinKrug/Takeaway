@@ -13,7 +13,10 @@ defmodule Takeaway.Speeches.Speech do
     # `Takeaway.SpeechCreator.set_current_slide/3`, not through `changeset/2`.
     field :current_slide, :integer
 
+    # The conference the speech is part of, or nil for a standalone talk.
     belongs_to :event, Takeaway.Events.Event
+    # The owner; set only through `Takeaway.SpeechCreator.create_speech/3`, never cast.
+    belongs_to :organizer, Takeaway.Organizers.Organizer
     belongs_to :speaker, Takeaway.Accounts.User
     has_many :notes, Takeaway.Notes.Note
     has_many :questions, Takeaway.Questions.Question
@@ -34,7 +37,7 @@ defmodule Takeaway.Speeches.Speech do
       :event_id,
       :speaker_id
     ])
-    |> validate_required([:title, :event_id])
+    |> validate_required([:title])
     |> Takeaway.JoinCode.put_join_code()
     |> unique_constraint(:join_code)
     |> assoc_constraint(:event)

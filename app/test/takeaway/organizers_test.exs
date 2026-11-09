@@ -25,21 +25,44 @@ defmodule Takeaway.OrganizersTest do
     assert Organizers.authenticate(nil, nil) == nil
   end
 
-  test "speeches created by an organizer land in their own event" do
+  test "a speech belongs to a conference or none, and its organizer owns it" do
     {:ok, a} = Organizers.register(%{email: "a@example.com", password: "password1"})
     {:ok, b} = Organizers.register(%{email: "b@example.com", password: "password1"})
 
     {:ok, s1} = SpeechCreator.create_speech(%{"title" => "One"}, [], organizer: a)
-    {:ok, s2} = SpeechCreator.create_speech(%{"title" => "Two"}, [], organizer: a)
-    {:ok, s3} = SpeechCreator.create_speech(%{"title" => "Three"}, [], organizer: b)
+
+    {:ok, s2} =
+      SpeechCreator.create_speech(%{"title" => "Two"}, [], organizer: a, event: {:new, "Conf"})
+
+    {:ok, s3} =
+      SpeechCreator.create_speech(%{"title" => "Three"}, [], organizer: a, event: s2.event_id)
+
     {:ok, s4} = SpeechCreator.create_speech(%{"title" => "Open"})
 
-    assert s1.event_id == s2.event_id
-    assert s3.event_id != s1.event_id
+    assert s1.event_id == nil
+    assert s1.organizer_id == a.id
+    assert s2.event_id && s3.event_id == s2.event_id
+    assert [%{name: "Conf"}] = Events.list_events_for_organizer(a)
     assert Organizers.owns_speech?(a, s1)
+    assert Organizers.owns_speech?(a, s3)
     refute Organizers.owns_speech?(b, s1)
+    refute Organizers.owns_speech?(b, s3)
     refute Organizers.owns_speech?(a, s4)
-    assert [_] = Events.list_events_for_organizer(a)
+
+    # Another organizer can't put a speech into a's conference.
+    assert {:error, :event_not_found} =
+             SpeechCreator.create_speech(%{"title" => "Sneaky"}, [],
+               organizer: b,
+               event: s2.event_id
+             )
+  end
+
+  test "the owner of a speech's conference may run it too" do
+    {:ok, a} = Organizers.register(%{email: "a@example.com", password: "password1"})
+    {:ok, event} = Events.create_event(%{name: "Old"}, a)
+    {:ok, speech} = Takeaway.Speeches.create_speech(%{title: "Legacy", event_id: event.id})
+    assert speech.organizer_id == nil
+    assert Organizers.owns_speech?(a, speech)
   end
 
   test "Release.claim_unowned_events gives orphans to an organizer" do

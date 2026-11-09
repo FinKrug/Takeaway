@@ -206,6 +206,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
         </.button>
 
         <.button
+          :if={@speech.event_id}
           href={~p"/events/#{@speech.event_id}/tickets"}
           variant="secondary"
           size="sm"
