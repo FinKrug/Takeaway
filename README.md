@@ -31,6 +31,25 @@ to 2,000 characters. Rejections appear inline and are never saved or broadcast.
 The existing `:question_filter` hook overrides the default. Imported verbal
 questions continue to use the transcript heuristic separately.
 
+### Question context tags
+
+Questions show a compact tag such as `Slide 4 · 12:34`. Submission time stays in
+`offset_ms`; the related transcript segment and its start time are stored separately
+as `context_segment_id` and `context_offset_ms`. An explicit attendee slide wins.
+When speaker slide controls provide `speech.current_slide`, that slide is captured
+from the database at submission time. Without slide controls or uploaded slides,
+the tag can contain just the time.
+
+`Takeaway.Questions.TagWorker` matches typed questions against speech-scoped
+Elasticsearch transcript/slide candidates after saving. Each search has a 250 ms
+request timeout with retries disabled; candidates are checked against Postgres and
+content-word overlap before use. A related earlier passage can replace the current
+context; automatic slide choices can be refined, while explicit choices are kept.
+Late transcript chunks fill missing context. Tag updates are persisted, broadcast
+to both question lists and reindexed using the existing ES `tag` field. Search
+failure leaves the saved question and its local context intact. Set
+`config :takeaway, :question_tagging, false` to disable background enrichment.
+
 ## Configuration
 
 | Variable | Purpose |

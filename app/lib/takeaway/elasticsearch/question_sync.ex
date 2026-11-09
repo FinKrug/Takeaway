@@ -40,21 +40,22 @@ defmodule Takeaway.Elasticsearch.QuestionSync do
   end
 
   @impl true
-  def handle_info({:question_created, question}, state) do
-    case Elasticsearch.index_question(question) do
-      {:ok, _} ->
-        Logger.debug("[Elasticsearch.QuestionSync] Indexed question: #{question.id}")
+  def handle_info({event, question}, state) when event in [:question_created, :question_tagged] do
+    # Event delivery across replicas can lag; index current DB state, not a stale snapshot.
+    question =
+      case question do
+        %Takeaway.Questions.Question{} -> Questions.get_question(question.id)
+        _ -> question
+      end
 
-      {:error, reason} ->
-        Logger.warning(
-          "[Elasticsearch.QuestionSync] Failed to index question #{question.id}: #{inspect(reason)}"
-        )
+    cond do
+      is_nil(question) -> {:noreply, state}
+      Map.get(question, :retracted_at) -> handle_info({:question_retracted, question}, state)
+      true -> index_question(question, state)
     end
-
-    {:noreply, state}
   rescue
     e ->
-      Logger.warning("[Elasticsearch.QuestionSync] Exception indexing question: #{inspect(e)}")
+      Logger.warning("[Elasticsearch.QuestionSync] Failed to load question: #{inspect(e)}")
       {:noreply, state}
   end
 
@@ -80,5 +81,23 @@ defmodule Takeaway.Elasticsearch.QuestionSync do
   @impl true
   def handle_info(_msg, state) do
     {:noreply, state}
+  end
+
+  defp index_question(question, state) do
+    case Elasticsearch.index_question(question) do
+      {:ok, _} ->
+        Logger.debug("[Elasticsearch.QuestionSync] Indexed question: #{question.id}")
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Elasticsearch.QuestionSync] Failed to index question #{question.id}: #{inspect(reason)}"
+        )
+    end
+
+    {:noreply, state}
+  rescue
+    e ->
+      Logger.warning("[Elasticsearch.QuestionSync] Exception indexing question: #{inspect(e)}")
+      {:noreply, state}
   end
 end
