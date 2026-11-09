@@ -57,6 +57,21 @@ defmodule TakeawayWeb.JoinLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
       assert has_element?(lv, "#captions li", "earlier words")
     end
+
+    test "waiting-room attendee gets segments recorded before they saw the start",
+         %{conn: conn, speech: speech} do
+      # Recorded before this LiveView exists, so its broadcast never reaches it,
+      # and mount skips captions because the speech hasn't started.
+      {:ok, _} =
+        Takeaway.Transcripts.record_segments(speech.id, [
+          %{text: "missed words", start_ms: 0, end_ms: 1000}
+        ])
+
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      {:ok, started} = SpeechCreator.start_speech(speech)
+      send(lv.pid, {:speech_started, started})
+      assert has_element?(lv, "#captions li", "missed words")
+    end
   end
 
   test "logo without wordmark has an accessible name" do

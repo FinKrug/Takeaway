@@ -323,8 +323,9 @@ defmodule TakeawayWeb.SpeechLive.Join do
     do: {:noreply, put_flash(socket, :error, "Could not generate your summary")}
 
   @impl true
+  # Reload captions so waiting-room attendees see the same transcript as late joiners.
   def handle_info({:speech_started, speech}, socket),
-    do: {:noreply, assign(socket, :speech, speech)}
+    do: {:noreply, socket |> assign(:speech, speech) |> load_captions(speech)}
 
   def handle_info({:speech_ended, speech}, socket),
     do: {:noreply, socket |> assign(:speech, speech) |> load_summary()}
