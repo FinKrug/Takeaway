@@ -49,4 +49,31 @@ defmodule Takeaway.BillingTest do
     assert {:error, cs} = Billing.create_plan(%{key: "y", name: "Y", limits: nil})
     assert "can't be blank" in errors_on(cs).limits
   end
+
+  describe "speech_feature_allowed?/2" do
+    setup do
+      {:ok, event} = Takeaway.Events.create_event(%{name: "Conf"})
+      {:ok, speech} = Takeaway.Speeches.create_speech(%{title: "T", event_id: event.id})
+      %{event: event, speech: speech}
+    end
+
+    test "defaults to a permissive plan when nothing is configured", %{speech: speech} do
+      assert Billing.speech_feature_allowed?(speech, :summaries)
+    end
+
+    test "uses the stored free plan as the default", %{speech: speech} do
+      {:ok, _} = Billing.create_plan(%{key: "free", name: "Free", features: []})
+      refute Billing.speech_feature_allowed?(speech, :summaries)
+    end
+
+    test "uses the event's own plan", %{event: event, speech: speech} do
+      {:ok, _} = Billing.create_plan(%{key: "free", name: "Free", features: []})
+      {:ok, pro} = Billing.create_plan(%{key: "pro", name: "Pro", features: ["summaries"]})
+
+      {:ok, _} =
+        event |> Takeaway.Events.Event.changeset(%{plan_id: pro.id}) |> Takeaway.Repo.update()
+
+      assert Billing.speech_feature_allowed?(speech, :summaries)
+    end
+  end
 end

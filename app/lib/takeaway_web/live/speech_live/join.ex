@@ -8,7 +8,14 @@ defmodule TakeawayWeb.SpeechLive.Join do
   def mount(%{"code" => code}, session, socket) do
     case Speeches.get_speech_by_join_code(code) do
       nil ->
-        {:ok, assign(socket, speech: nil, page_title: "Join", user_id: nil, summary: nil)}
+        {:ok,
+         assign(socket,
+           speech: nil,
+           page_title: "Join",
+           user_id: nil,
+           summary: nil,
+           summary_locked: false
+         )}
 
       speech ->
         if connected?(socket), do: SpeechCreator.subscribe(speech.id)
@@ -17,7 +24,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
          socket
          |> assign(speech: speech, page_title: speech.title)
          # The signed-in attendee, set in the session by the (separate) sign-in flow.
-         |> assign(user_id: session["user_id"], summary: nil)
+         |> assign(user_id: session["user_id"], summary: nil, summary_locked: false)
          |> load_summary()}
     end
   end
@@ -27,6 +34,16 @@ defmodule TakeawayWeb.SpeechLive.Join do
        when not is_nil(uid) do
     speech = socket.assigns.speech
 
+    if Summaries.allowed?(speech) do
+      load_allowed_summary(socket, speech, uid)
+    else
+      assign(socket, :summary_locked, true)
+    end
+  end
+
+  defp load_summary(socket), do: socket
+
+  defp load_allowed_summary(socket, speech, uid) do
     case Summaries.get_attendee_summary(speech.id, uid) do
       nil ->
         if connected?(socket),
@@ -38,11 +55,12 @@ defmodule TakeawayWeb.SpeechLive.Join do
     end
   end
 
-  defp load_summary(socket), do: socket
-
   @impl true
   def handle_async(:summary, {:ok, {:ok, summary}}, socket),
     do: {:noreply, assign(socket, :summary, summary)}
+
+  def handle_async(:summary, {:ok, {:error, :plan_required}}, socket),
+    do: {:noreply, assign(socket, :summary_locked, true)}
 
   def handle_async(:summary, _result, socket),
     do: {:noreply, put_flash(socket, :error, "Could not generate your summary")}
@@ -75,7 +93,14 @@ defmodule TakeawayWeb.SpeechLive.Join do
             class="card bg-base-200 p-4 space-y-3"
           >
             <h2 class="font-semibold text-lg">Your cliffnotes</h2>
-            <p :if={is_nil(@summary)} id="summary-loading" class="text-sm opacity-70">
+            <p :if={@summary_locked} id="summary-locked" class="text-sm opacity-70">
+              Summaries are not included in this event's plan.
+            </p>
+            <p
+              :if={is_nil(@summary) and not @summary_locked}
+              id="summary-loading"
+              class="text-sm opacity-70"
+            >
               Preparing your summary...
             </p>
             <div :if={@summary} class="space-y-3">

@@ -18,7 +18,7 @@ defmodule Takeaway.Summaries do
   """
   import Ecto.Query
 
-  alias Takeaway.{LLM, Notes, Questions, Repo, Transcripts}
+  alias Takeaway.{Billing, LLM, Notes, Questions, Repo, Transcripts}
   alias Takeaway.Speeches.Speech
   alias Takeaway.Summaries.Summary
 
@@ -42,16 +42,24 @@ defmodule Takeaway.Summaries do
           where: s.speech_id == ^speech_id and s.kind == "attendee" and s.user_id == ^user_id
       )
 
+  @doc "Whether the speech's plan includes summaries."
+  def allowed?(%Speech{} = speech), do: Billing.speech_feature_allowed?(speech, :summaries)
+
   @doc """
   Returns the cached speaker summary, generating and caching it on first call.
-  Returns `{:error, :not_ended}` while the speech is still running.
+  Returns `{:error, :not_ended}` while the speech is still running and
+  `{:error, :plan_required}` when the speech's plan does not include summaries.
   """
   def speaker_summary(%Speech{ended_at: nil}), do: {:error, :not_ended}
 
   def speaker_summary(%Speech{} = speech) do
-    case get_speaker_summary(speech.id) do
-      %Summary{} = cached -> {:ok, cached}
-      nil -> generate_speaker(speech)
+    if allowed?(speech) do
+      case get_speaker_summary(speech.id) do
+        %Summary{} = cached -> {:ok, cached}
+        nil -> generate_speaker(speech)
+      end
+    else
+      {:error, :plan_required}
     end
   end
 
@@ -59,9 +67,13 @@ defmodule Takeaway.Summaries do
   def attendee_summary(%Speech{ended_at: nil}, _user_id), do: {:error, :not_ended}
 
   def attendee_summary(%Speech{} = speech, user_id) do
-    case get_attendee_summary(speech.id, user_id) do
-      %Summary{} = cached -> {:ok, cached}
-      nil -> generate_attendee(speech, user_id)
+    if allowed?(speech) do
+      case get_attendee_summary(speech.id, user_id) do
+        %Summary{} = cached -> {:ok, cached}
+        nil -> generate_attendee(speech, user_id)
+      end
+    else
+      {:error, :plan_required}
     end
   end
 

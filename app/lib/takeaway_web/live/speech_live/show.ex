@@ -20,6 +20,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
          |> assign(:speech, speech)
          |> assign(:artifacts, Speeches.list_artifacts(speech.id))
          |> assign(:summary, nil)
+         |> assign(:summary_locked, false)
          |> load_summary()}
     end
   end
@@ -28,6 +29,16 @@ defmodule TakeawayWeb.SpeechLive.Show do
   defp load_summary(%{assigns: %{speech: %{ended_at: %DateTime{} = _}}} = socket) do
     speech = socket.assigns.speech
 
+    if Summaries.allowed?(speech) do
+      load_allowed_summary(socket, speech)
+    else
+      assign(socket, :summary_locked, true)
+    end
+  end
+
+  defp load_summary(socket), do: socket
+
+  defp load_allowed_summary(socket, speech) do
     case Summaries.get_speaker_summary(speech.id) do
       nil ->
         if connected?(socket),
@@ -39,11 +50,12 @@ defmodule TakeawayWeb.SpeechLive.Show do
     end
   end
 
-  defp load_summary(socket), do: socket
-
   @impl true
   def handle_async(:summary, {:ok, {:ok, summary}}, socket),
     do: {:noreply, assign(socket, :summary, summary)}
+
+  def handle_async(:summary, {:ok, {:error, :plan_required}}, socket),
+    do: {:noreply, assign(socket, :summary_locked, true)}
 
   def handle_async(:summary, _result, socket),
     do: {:noreply, put_flash(socket, :error, "Could not generate the summary")}
@@ -125,7 +137,14 @@ defmodule TakeawayWeb.SpeechLive.Show do
 
         <div :if={@speech.ended_at} id="speaker-summary" class="card bg-base-200 p-4 space-y-4">
           <h2 class="font-semibold text-lg">Speech summary</h2>
-          <p :if={is_nil(@summary)} id="summary-loading" class="text-sm opacity-70">
+          <p :if={@summary_locked} id="summary-locked" class="text-sm opacity-70">
+            Summaries are not included in your plan. Upgrade to get post-talk summaries.
+          </p>
+          <p
+            :if={is_nil(@summary) and not @summary_locked}
+            id="summary-loading"
+            class="text-sm opacity-70"
+          >
             Generating summary...
           </p>
           <div :if={@summary} class="space-y-4">
