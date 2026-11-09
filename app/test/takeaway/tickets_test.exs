@@ -10,6 +10,16 @@ defmodule Takeaway.TicketsTest do
     %{e1: e1, e2: e2}
   end
 
+  test "validate_for_event/2", %{e1: e1, e2: e2} do
+    assert :ok = Tickets.validate_for_event(e1.id, nil)
+    {:ok, t} = Tickets.create_ticket(e1)
+    assert {:error, :ticket_required} = Tickets.validate_for_event(e1.id, nil)
+    assert {:error, :ticket_required} = Tickets.validate_for_event(e1.id, "  ")
+    assert {:error, :invalid_ticket} = Tickets.validate_for_event(e1.id, "NOPE")
+    assert :ok = Tickets.validate_for_event(e1.id, String.downcase(t.code))
+    assert :ok = Tickets.validate_for_event(e2.id, nil)
+  end
+
   test "generates a code", %{e1: e} do
     assert {:ok, t} = Tickets.create_ticket(e)
     assert String.length(t.code) == 8
