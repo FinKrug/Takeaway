@@ -27,13 +27,25 @@ defmodule Takeaway.QuestionsTest do
 
   test "offset is 0 before speech starts", %{speech: s, user: u} do
     s = %{s | started_at: nil}
-    assert {:ok, %{offset_ms: 0}} = Questions.submit_question(s, u, %{text: "hi"})
+    assert {:ok, %{offset_ms: 0}} = Questions.submit_question(s, u, %{text: "Hi?"})
   end
 
   test "blank text is rejected and not broadcast", %{speech: s, user: u} do
-    assert {:error, cs} = Questions.submit_question(s, u, %{"text" => " "})
-    assert "can't be blank" in errors_on(cs).text
+    assert {:error, "type a question first"} = Questions.submit_question(s, u, %{"text" => " "})
     refute_receive {:question_created, _}
+  end
+
+  test "default filter rejects statements and profanity without saving or broadcasting",
+       %{speech: s, user: u} do
+    for text <- ["Thanks everyone", "Why is this sh1t?"] do
+      assert {:error, reason} = Questions.submit_question(s, u, %{"text" => text})
+      assert is_binary(reason)
+      assert Questions.list_questions(s.id) == []
+      refute_receive {:question_created, _}
+    end
+
+    assert {:ok, %{text: "How does it scale"}} =
+             Questions.submit_question(s, u, %{"text" => "How does it scale"})
   end
 
   test "filter hook can reject or rewrite", %{speech: s, user: u} do
@@ -91,7 +103,7 @@ defmodule Takeaway.QuestionsTest do
   end
 
   test "owner retracts, broadcasts, disappears from list", %{speech: s, user: u, other: o} do
-    {:ok, q} = Questions.submit_question(s, u, %{"text" => "Q"})
+    {:ok, q} = Questions.submit_question(s, u, %{"text" => "Q?"})
     assert_receive {:question_created, _}
 
     assert {:error, :forbidden} = Questions.retract_question_by(q.id, o)

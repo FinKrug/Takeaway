@@ -161,6 +161,23 @@ defmodule TakeawayWeb.JoinLiveTest do
       assert Questions.list_questions(speech.id) == []
     end
 
+    test "default filter errors appear inline and allow a corrected question",
+         %{conn: conn, speech: speech} do
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+
+      for {text, message} <- [
+            {"Thanks everyone", "please ask a question about the talk"},
+            {"Why this sh1t?", "please rephrase your question without profanity"}
+          ] do
+        html = lv |> form("#question-form", question: %{text: text}) |> render_submit()
+        assert html =~ message
+        assert Questions.list_questions(speech.id) == []
+      end
+
+      lv |> form("#question-form", question: %{text: "How does it scale"}) |> render_submit()
+      assert [%{text: "How does it scale"}] = Questions.list_questions(speech.id)
+    end
+
     test "an invalid slide number shows an error", %{conn: conn, speech: speech} do
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
 
