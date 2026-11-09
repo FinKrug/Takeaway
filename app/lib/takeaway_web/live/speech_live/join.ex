@@ -131,9 +131,11 @@ defmodule TakeawayWeb.SpeechLive.Join do
 
   defp load_captions(socket, _speech), do: socket
 
+  # Any user in the session, as in `TakeawayWeb.AttendeeSession`: a logged-in speaker
+  # takes part in the audience under their own account.
   defp session_attendee(%{"user_id" => id}) when is_integer(id) do
     case Accounts.get_user(id) do
-      %User{role: "attendee"} = user -> user
+      %User{} = user -> user
       _ -> nil
     end
   end

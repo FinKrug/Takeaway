@@ -238,6 +238,18 @@ defmodule TakeawayWeb.JoinLiveTest do
       assert has_element?(lv, "#my-question-count", "1")
     end
 
+    test "a logged-in speaker can ask under their own account", %{speech: speech} do
+      speaker = user_fixture(%{role: "speaker", name: "Sam"})
+      conn = log_in_user(build_conn(), speaker)
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+
+      lv |> form("#question-form", question: %{text: "From a speaker?"}) |> render_submit()
+
+      assert [%Question{user_id: uid} = q] = Questions.list_questions(speech.id)
+      assert uid == speaker.id
+      assert has_element?(lv, "#question-#{q.id}", "From a speaker?")
+    end
+
     test "blank text shows an inline error and saves nothing", %{conn: conn, speech: speech} do
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
       html = lv |> form("#question-form", question: %{text: "   "}) |> render_submit()
