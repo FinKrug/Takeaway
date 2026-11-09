@@ -129,6 +129,8 @@
     background-color: var(--tk-canvas);
     color: var(--tk-ink);
     font-family: var(--font-sans);
+    /* 1.4.10: long words/codes wrap instead of forcing horizontal scroll */
+    overflow-wrap: break-word;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -154,7 +156,9 @@
   *::before,
   *::after {
     animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
