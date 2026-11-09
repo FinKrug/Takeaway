@@ -61,3 +61,26 @@ The speaker's **End Speech** button sets `ended_at` and broadcasts `{:speech_end
 Prose comes from `Takeaway.LLM`. Set `ANTHROPIC_API_KEY` (optionally `ANTHROPIC_MODEL`) to use
 Claude; without it, or if the call fails, an extractive fallback is stored. Speeches with no
 transcript and/or no questions yield a summary that says so.
+
+## Organizer accounts
+
+Organizers register at `/organizers/register` and log in at `/organizers/log_in`
+(PBKDF2-SHA256 password hashes; the session cookie holds only the organizer id).
+An organizer owns events (`events.organizer_id`); creating a speech at `/speeches/new`
+puts it in the organizer's event, created on first use.
+
+Only the owning organizer can open the organizer pages. Everyone else is redirected
+to the login page, or to `/` when the event or speech belongs to someone else:
+
+* `/organizers`: dashboard listing the organizer's events with a **Manage tickets** link
+* `/events/:id/tickets`: generate and import tickets
+* `/speeches/:code`: speech control page (also links to the tickets and speaker pages)
+* `/speeches/:id/speak`: speaker page with the live transcript
+
+`/join/:code` (attendees) stays public. The per-event `admin_token` links no longer
+work; the column is left in place and unused.
+
+Events created before organizer accounts have no owner and are closed to everyone until
+claimed. After registering, run in the release:
+
+    bin/takeaway rpc 'Takeaway.Release.claim_unowned_events("me@example.com")'

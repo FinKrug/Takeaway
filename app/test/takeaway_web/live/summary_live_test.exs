@@ -5,7 +5,8 @@ defmodule TakeawayWeb.SummaryLiveTest do
 
   alias Takeaway.{Accounts, Notes, Questions, SpeechCreator, Summaries}
 
-  setup do
+  setup %{conn: conn} do
+    organizer = organizer_fixture()
     Application.put_env(:takeaway, :llm, Takeaway.FakeLLM)
     Application.put_env(:takeaway, :llm_test_pid, self())
 
@@ -14,10 +15,10 @@ defmodule TakeawayWeb.SummaryLiveTest do
       Application.delete_env(:takeaway, :llm_test_pid)
     end)
 
-    {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Talk"})
+    {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Talk"}, [], organizer: organizer)
     {:ok, speech} = SpeechCreator.start_speech(speech)
     {:ok, attendee} = Accounts.create_anonymous_attendee()
-    %{speech: speech, attendee: attendee}
+    %{speech: speech, attendee: attendee, conn: log_in_organizer(conn, organizer)}
   end
 
   test "speaker ends the speech and sees the summary (generated once)", %{
@@ -84,5 +85,23 @@ defmodule TakeawayWeb.SummaryLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/join/#{speech.join_code}")
     assert html =~ "The speech has ended"
     refute html =~ "speaker-summary"
+  end
+
+  test "summaries are locked when the plan does not include them", %{
+    conn: conn,
+    speech: speech,
+    attendee: a
+  } do
+    {:ok, _} = Takeaway.Billing.create_plan(%{key: "free", name: "Free", features: []})
+    {:ok, speech} = SpeechCreator.end_speech(speech)
+
+    {:ok, _lv, html} = live(conn, ~p"/speeches/#{speech.join_code}")
+    assert html =~ "summary-locked"
+    refute html =~ "summary-text"
+
+    conn = Plug.Test.init_test_session(conn, %{"user_id" => a.id})
+    {:ok, _lv, html} = live(conn, ~p"/join/#{speech.join_code}")
+    assert html =~ "summary-locked"
+    refute html =~ "cliffnotes\""
   end
 end

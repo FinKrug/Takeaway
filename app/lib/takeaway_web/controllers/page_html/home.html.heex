@@ -8,6 +8,26 @@
       Ask the speaker questions while they talk, keep your own notes in one place,
       and leave with a summary of what mattered.
     </p>
+    <p class="mt-4 text-sm text-muted">
+      <.link
+        :if={@current_organizer}
+        id="organizer-dashboard-link"
+        href={~p"/organizers"}
+        class="inline-flex items-center gap-1 font-semibold text-brand-strong underline-offset-4 hover:underline"
+      >
+        Your events and tickets <.icon name="hero-arrow-right-mini" class="size-4" />
+      </.link>
+      <span :if={!@current_organizer}>
+        Running an event?
+        <.link
+          id="organizer-login-link"
+          href={~p"/organizers/log_in"}
+          class="font-semibold text-brand-strong underline-offset-4 hover:underline"
+        >
+          Organizer log in
+        </.link>
+      </span>
+    </p>
   </section>
 
   <div class="grid gap-4 sm:grid-cols-2 sm:gap-5">

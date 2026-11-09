@@ -5,8 +5,9 @@ defmodule TakeawayWeb.SpeakerLiveTest do
 
   alias Takeaway.{Accounts, Events, Speeches, Transcripts}
 
-  setup do
-    {:ok, event} = Events.create_event(%{name: "Conf"})
+  setup %{conn: conn} do
+    organizer = organizer_fixture()
+    {:ok, event} = Events.create_event(%{name: "Conf"}, organizer)
     {:ok, speaker} = Accounts.create_speaker(%{name: "Sam"})
 
     {:ok, speech} =
@@ -14,7 +15,7 @@ defmodule TakeawayWeb.SpeakerLiveTest do
 
     Application.put_env(:takeaway, :stt, Takeaway.FakeSTT)
     on_exit(fn -> Application.delete_env(:takeaway, :stt) end)
-    %{speech: speech}
+    %{speech: speech, conn: log_in_organizer(conn, organizer)}
   end
 
   test "renders existing segments and shows new ones live", %{conn: conn, speech: speech} do
@@ -44,5 +45,17 @@ defmodule TakeawayWeb.SpeakerLiveTest do
 
   test "unknown speech redirects", %{conn: conn} do
     assert {:error, {:redirect, %{to: "/"}}} = live(conn, ~p"/speeches/0/speak")
+  end
+
+  describe "access control" do
+    test "logged-out visitors go to the login page", %{speech: speech} do
+      conn = get(Phoenix.ConnTest.build_conn(), ~p"/speeches/#{speech.id}/speak")
+      assert redirected_to(conn) == ~p"/organizers/log_in"
+    end
+
+    test "another organizer can't open the page", %{speech: speech} do
+      conn = log_in_organizer(Phoenix.ConnTest.build_conn(), organizer_fixture())
+      assert {:error, {:redirect, %{to: "/"}}} = live(conn, ~p"/speeches/#{speech.id}/speak")
+    end
   end
 end

@@ -16,7 +16,9 @@ defmodule Takeaway.Elasticsearch.ClusterSetup do
   @impl true
   def init(_opts) do
     es_config = Application.get_env(:takeaway, :elasticsearch, [])
-    auto_setup = Keyword.get(es_config, :auto_setup, Application.get_env(:takeaway, :env) != :test)
+
+    auto_setup =
+      Keyword.get(es_config, :auto_setup, Application.get_env(:takeaway, :env) != :test)
 
     if auto_setup do
       # Run async so startup is never blocked

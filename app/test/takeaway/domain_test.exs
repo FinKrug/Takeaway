@@ -35,6 +35,31 @@ defmodule Takeaway.DomainTest do
       assert {:error, cs} = Events.create_event(%{})
       assert "can't be blank" in errors_on(cs).name
     end
+
+    test "admin token is generated, kept on update and never cast", %{event: event} do
+      assert is_binary(event.admin_token) and String.length(event.admin_token) == 32
+
+      {:ok, updated} = Events.update_event(event, %{"name" => "New", "admin_token" => "mine"})
+      assert updated.admin_token == event.admin_token
+
+      {:ok, other} = Events.create_event(%{name: "Other", admin_token: "mine"})
+      refute other.admin_token in ["mine", event.admin_token]
+    end
+
+    test "get_event_for_organizer only returns the owner's event", %{event: event} do
+      {:ok, owner} = Takeaway.Organizers.register(%{email: "o@x.com", password: "password1"})
+      {:ok, other} = Takeaway.Organizers.register(%{email: "p@x.com", password: "password1"})
+      {:ok, event} = Takeaway.Organizers.claim_event(event, owner)
+
+      assert Events.get_event_for_organizer(event.id, owner).id == event.id
+      assert Events.get_event_for_organizer(to_string(event.id), owner).id == event.id
+      assert Events.get_event_for_organizer(event.id, other) == nil
+      assert Events.get_event_for_organizer(event.id, nil) == nil
+      assert Events.get_event_for_organizer("abc", owner) == nil
+      assert Events.get_event_for_organizer(event.id + 1_000, owner) == nil
+      assert [%{id: id}] = Events.list_events_for_organizer(owner)
+      assert id == event.id
+    end
   end
 
   describe "speeches" do

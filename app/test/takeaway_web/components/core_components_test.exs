@@ -81,7 +81,9 @@ defmodule TakeawayWeb.CoreComponentsTest do
              )
 
       assert has?(
-               rendered_to_string(~H|<.input name="n" id="n" type="textarea" value="" rows="2" />|),
+               rendered_to_string(
+                 ~H|<.input name="n" id="n" type="textarea" value="" rows="2" />|
+               ),
                "textarea#n[rows='2']"
              )
     end

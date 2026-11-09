@@ -162,4 +162,31 @@ defmodule Takeaway.SummariesTest do
     assert e2.ended_at == e.ended_at
     refute_receive {:speech_ended, _}
   end
+
+  describe "plan gating" do
+    setup %{speech: speech} do
+      {:ok, _} = Takeaway.Billing.create_plan(%{key: "free", name: "Free", features: []})
+      %{speech: ended(speech)}
+    end
+
+    test "summaries are refused and not generated without the feature", %{
+      speech: speech,
+      attendee: a
+    } do
+      assert {:error, :plan_required} = Summaries.speaker_summary(speech)
+      assert {:error, :plan_required} = Summaries.attendee_summary(speech, a.id)
+      assert Summaries.get_speaker_summary(speech.id) == nil
+    end
+
+    test "allowed once the event's plan includes summaries", %{speech: speech} do
+      {:ok, pro} =
+        Takeaway.Billing.create_plan(%{key: "pro", name: "Pro", features: ["summaries"]})
+
+      event = Takeaway.Repo.get!(Takeaway.Events.Event, speech.event_id)
+
+      {:ok, _} = Takeaway.Billing.set_event_plan(event, pro)
+
+      assert {:ok, _} = Summaries.speaker_summary(speech)
+    end
+  end
 end

@@ -1,0 +1,100 @@
+# In-cluster speech-to-text. Speaches (faster-whisper) speaks the OpenAI
+# /v1/audio/transcriptions API the app already calls. One replica, CPU only,
+# Whisper small. The model is downloaded on startup into an emptyDir so it
+# does not take a PVC from the team budget.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whisper
+  labels:
+    app: whisper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whisper
+  template:
+    metadata:
+      labels:
+        app: whisper
+    spec:
+      containers:
+        - name: whisper
+          image: ghcr.io/speaches-ai/speaches:0.9.0-rc.3-cpu
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: WHISPER__INFERENCE_DEVICE
+              value: cpu
+            # int8 keeps the small model inside a 2Gi limit on CPU.
+            - name: WHISPER__COMPUTE_TYPE
+              value: int8
+            - name: WHISPER__CPU_THREADS
+              value: "2"
+            # Keep the model loaded between audio chunks.
+            - name: STT_MODEL_TTL
+              value: "-1"
+            - name: PRELOAD_MODELS
+              value: '["Systran/faster-whisper-small"]'
+            # The Gradio UI is unused; the app talks to the HTTP API.
+            - name: ENABLE_UI
+              value: "false"
+            - name: LOG_LEVEL
+              value: info
+            - name: HF_HOME
+              value: /home/ubuntu/.cache/huggingface
+          volumeMounts:
+            - name: models
+              mountPath: /home/ubuntu/.cache/huggingface
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: models
+          emptyDir:
+            sizeLimit: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whisper
+  labels:
+    app: whisper
+spec:
+  selector:
+    app: whisper
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
