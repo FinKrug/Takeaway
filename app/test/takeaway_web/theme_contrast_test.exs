@@ -43,7 +43,9 @@ defmodule TakeawayWeb.ThemeContrastTest do
         t = tokens(@theme)
 
         pairs =
-          for bg <- ~w(canvas surface sunken), fg <- ~w(ink muted brand-strong), do: {fg, bg}
+          for bg <- ~w(canvas surface sunken),
+              fg <- ~w(ink muted brand brand-strong),
+              do: {fg, bg}
 
         pairs =
           pairs ++
