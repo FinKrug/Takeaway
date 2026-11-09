@@ -25,12 +25,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The parent commit, to see whether diarizer/ changed.
+          fetch-depth: 2
 
       - name: Image name and tag
         id: meta
         run: |
           echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
           echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      # The diarizer (diarizer/, deploy/diarizer.yaml) is a second image. It's
+      # pushed to the same GHCR package as tag diarizer-<sha>, so it is public
+      # like the app image. Rebuild it only when diarizer/ changed, on a manual
+      # run, or while the manifests still point at the "pending" placeholder.
+      - name: Does the diarizer need a build?
+        id: diarizer
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          current=$(yq '.images[] | select(.name == "diarizer") | .newTag' deploy/kustomization.yaml)
+          if [ "$EVENT" = workflow_dispatch ] || [ "$current" = pending ] \
+             || ! git diff --quiet HEAD^ HEAD -- diarizer/; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: docker/login-action@v3
         with:
@@ -48,10 +66,19 @@ jobs:
             ${{ steps.meta.outputs.image }}:latest
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
+      - uses: docker/build-push-action@v6
+        if: steps.diarizer.outputs.build == 'true'
+        with:
+          context: diarizer
+          push: true
+          tags: ${{ steps.meta.outputs.image }}:diarizer-${{ steps.meta.outputs.tag }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
       - name: Point the manifests at the new image
         env:
           IMAGE: ${{ steps.meta.outputs.image }}
           TAG: ${{ steps.meta.outputs.tag }}
+          DIARIZER_TAG: ${{ steps.diarizer.outputs.build == 'true' && format('diarizer-{0}', steps.meta.outputs.tag) || '' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -62,6 +89,9 @@ jobs:
             git fetch -q origin main
             git reset -q --hard FETCH_HEAD
             yq -i '(.images[] | select(.name == "app")) |= (.newName = strenv(IMAGE) | .newTag = strenv(TAG))' deploy/kustomization.yaml
+            if [ -n "$DIARIZER_TAG" ]; then
+              yq -i '(.images[] | select(.name == "diarizer")) |= (.newName = strenv(IMAGE) | .newTag = strenv(DIARIZER_TAG))' deploy/kustomization.yaml
+            fi
             if git diff --quiet; then exit 0; fi
             git commit -qam "deploy: ${TAG} [skip ci]"
             if git push -q origin HEAD:main; then exit 0; fi

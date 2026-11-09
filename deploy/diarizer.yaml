@@ -1,0 +1,94 @@
+# In-cluster speaker diarization (diarizer/). Labels who is speaking in each
+# audio chunk and keeps a voiceprint per speaker for each speech, so labels stay
+# stable across chunks. CPU only; models are baked into the image.
+#
+# One replica on purpose: the voiceprints live in memory. A restart starts the
+# speaker numbering again for speeches in progress.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: diarizer
+  labels:
+    app: diarizer
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: diarizer
+  template:
+    metadata:
+      labels:
+        app: diarizer
+    spec:
+      containers:
+        - name: diarizer
+          # Set by the GitHub Action (deploy/kustomization.yaml, name "diarizer").
+          image: diarizer
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: NUM_THREADS
+              value: "1"
+            # Cosine similarity a chunk's speaker needs to match a known voice.
+            # Raise it if two people get the same label; lower it if one person
+            # gets new labels.
+            - name: MATCH_THRESHOLD
+              value: "0.7"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: diarizer
+  labels:
+    app: diarizer
+spec:
+  selector:
+    app: diarizer
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

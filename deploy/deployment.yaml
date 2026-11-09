@@ -102,6 +102,10 @@ spec:
               value: http://whisper:8000/v1/audio/transcriptions
             - name: STT_MODEL
               value: Systran/faster-whisper-small
+            # In-cluster speaker labels (deploy/diarizer.yaml). Unset it to turn
+            # speaker labels off; the transcript works either way.
+            - name: DIARIZER_URL
+              value: http://diarizer:8000/v1/diarize
           resources:
             requests:
               cpu: 100m

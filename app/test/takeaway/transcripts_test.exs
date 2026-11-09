@@ -82,4 +82,43 @@ defmodule Takeaway.TranscriptsTest do
 
     assert ["SPEAKER_01", nil] = Enum.map(Transcripts.list_segments(speech.id), & &1.speaker)
   end
+
+  describe "with a diarizer" do
+    setup do
+      Application.put_env(:takeaway, :diarizer, Takeaway.FakeDiarizer)
+
+      on_exit(fn ->
+        Application.delete_env(:takeaway, :diarizer)
+        Application.delete_env(:takeaway, :fake_diarizer_mode)
+      end)
+    end
+
+    test "ingest labels segments by overlap and passes the speech as session", %{speech: speech} do
+      Transcripts.subscribe(speech.id)
+      assert {:ok, [a, b]} = Transcripts.ingest_chunk(speech.id, "audio", "audio/webm", 5000)
+
+      sid = to_string(speech.id)
+      assert_receive {:diarized, ^sid}
+      assert {a.speaker, b.speaker} == {"S1", "S2"}
+      assert {a.start_ms, b.start_ms} == {5000, 5800}
+      assert_receive {:transcript_segment, %{text: "hello", speaker: "S1"}}
+      assert ["S1", "S2"] = Enum.map(Transcripts.list_segments(speech.id), & &1.speaker)
+    end
+
+    test "a failing diarizer keeps the transcript, without labels", %{speech: speech} do
+      Application.put_env(:takeaway, :fake_diarizer_mode, :error)
+      assert {:ok, [a, b]} = Transcripts.ingest_chunk(speech.id, "audio", "audio/webm", 0)
+      assert {a.text, a.speaker, b.speaker} == {"hello", nil, nil}
+    end
+
+    test "a crashing diarizer doesn't take the caller down", %{speech: speech} do
+      Application.put_env(:takeaway, :fake_diarizer_mode, :raise)
+      assert {:ok, [_, _]} = Transcripts.ingest_chunk(speech.id, "audio", "audio/webm", 0)
+    end
+
+    test "STT errors still return the error", %{speech: speech} do
+      assert {:error, :down} = Transcripts.ingest_chunk(speech.id, "boom", "audio/webm", 0)
+      assert Transcripts.list_segments(speech.id) == []
+    end
+  end
 end

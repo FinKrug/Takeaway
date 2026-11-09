@@ -32,3 +32,27 @@ defmodule Takeaway.FailingLLM do
   @impl true
   def complete(_, _, _), do: {:error, :down}
 end
+
+defmodule Takeaway.FakeDiarizer do
+  @moduledoc "Speaker turns for FakeSTT segments; :fake_diarizer_mode :error fails, :raise crashes."
+  @behaviour Takeaway.Diarizer
+  @impl true
+  def diarize(_audio, _type, session) do
+    case Application.get_env(:takeaway, :fake_diarizer_mode) do
+      :error ->
+        {:error, :down}
+
+      :raise ->
+        raise "diarizer exploded"
+
+      _ ->
+        send(Application.fetch_env!(:takeaway, :indexer_test_pid), {:diarized, session})
+
+        {:ok,
+         [
+           %{start_ms: 0, end_ms: 900, speaker: "S1"},
+           %{start_ms: 900, end_ms: 1500, speaker: "S2"}
+         ]}
+    end
+  end
+end

@@ -14,11 +14,12 @@ defmodule TakeawayWeb.SpeakerLive do
 
       speech ->
         if connected?(socket), do: Transcripts.subscribe(speech.id)
+        {segments, last} = speech.id |> Transcripts.list_segments() |> mark_turns()
 
         {:ok,
          socket
-         |> assign(speech: speech, recording: false)
-         |> stream(:segments, Transcripts.list_segments(speech.id))}
+         |> assign(speech: speech, recording: false, last_speaker: last)
+         |> stream(:segments, segments)}
     end
   end
 
@@ -52,7 +53,7 @@ defmodule TakeawayWeb.SpeakerLive do
 
   @impl true
   def handle_info({:transcript_segment, seg}, socket),
-    do: {:noreply, stream_insert(socket, :segments, seg)}
+    do: {:noreply, insert_segment(socket, seg)}
 
   @doc false
   def format_ms(ms) do
@@ -61,12 +62,67 @@ defmodule TakeawayWeb.SpeakerLive do
     "#{String.pad_leading("#{div(s, 60)}", 2, "0")}:#{String.pad_leading("#{rem(s, 60)}", 2, "0")}"
   end
 
+  @doc """
+  Marks the segments that start a new speaker turn (`:new_speaker`), carrying
+  on from `last` (the speaker of the segment before them). Returns
+  `{segments, last}`; keep `last` in an assign for the next live segment.
+  Segments without a speaker never start a turn.
+  """
+  def mark_turns(segments, last \\ nil) do
+    Enum.map_reduce(segments, last, fn seg, prev ->
+      speaker = Map.get(seg, :speaker)
+      {Map.put(seg, :new_speaker, speaker != nil and speaker != prev), speaker || prev}
+    end)
+  end
+
+  @doc """
+  Stream-inserts one live segment, badging it when the speaker changed.
+  Expects a `:last_speaker` assign.
+  """
+  def insert_segment(socket, seg) do
+    {[seg], last} = mark_turns([seg], socket.assigns[:last_speaker])
+    socket |> assign(:last_speaker, last) |> stream_insert(:segments, seg)
+  end
+
+  @doc """
+  A friendly name for a diarization label: our diarizer's `S1` and providers'
+  zero-based `SPEAKER_00` both become "Speaker 1"; other labels show as they are.
+  """
+  def speaker_name(label) do
+    case speaker_number(label) do
+      nil -> label
+      n -> "Speaker #{n}"
+    end
+  end
+
+  defp speaker_number("SPEAKER_" <> n), do: parse_pos(n, 1)
+  defp speaker_number("S" <> n), do: parse_pos(n, 0)
+  defp speaker_number(_), do: nil
+
+  defp parse_pos(n, add) do
+    case Integer.parse(n) do
+      {i, ""} when i + add > 0 -> i + add
+      _ -> nil
+    end
+  end
+
+  @speaker_tones ~w(brand success warning outline)
+
+  @doc false
+  def speaker_tone(label) do
+    i = (speaker_number(label) || :erlang.phash2(label)) - 1
+    Enum.at(@speaker_tones, Integer.mod(i, length(@speaker_tones)))
+  end
+
   attr :id, :string, required: true
   attr :segments, :any, required: true, doc: "the :segments LiveView stream"
   attr :class, :string, default: nil
   slot :empty, doc: "shown only while the stream has no segments"
 
-  @doc "Renders transcript segments from a LiveView stream."
+  @doc """
+  Renders transcript segments from a LiveView stream. A segment marked with
+  `:new_speaker` (`mark_turns/2`) starts with its speaker's badge.
+  """
   def transcript_list(assigns) do
     ~H"""
     <ol id={@id} phx-update="stream" class={["space-y-3", @class]}>
@@ -76,12 +132,22 @@ defmodule TakeawayWeb.SpeakerLive do
       <li
         :for={{dom_id, seg} <- @segments}
         id={dom_id}
+        data-speaker={seg.speaker}
         class="flex gap-3 leading-relaxed motion-safe:animate-enter"
       >
         <span class="mt-0.5 shrink-0 font-mono text-xs tabular-nums text-muted">
           {format_ms(seg.start_ms)}
         </span>
-        <span class="text-pretty">{seg.text}</span>
+        <span class="min-w-0 text-pretty">
+          <.badge
+            :if={Map.get(seg, :new_speaker)}
+            tone={speaker_tone(seg.speaker)}
+            class="mr-1.5 align-[1px]"
+          >
+            {speaker_name(seg.speaker)}
+          </.badge>
+          {seg.text}
+        </span>
       </li>
     </ol>
     """

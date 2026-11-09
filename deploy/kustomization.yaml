@@ -10,7 +10,12 @@ resources:
   - httproute.yaml
   - db.yaml
   - whisper.yaml
+  - diarizer.yaml
 images:
   - name: app
     newName: ghcr.io/finkrug/takeaway
     newTag: "ba5e175"
+  # "pending" until the Action's first diarizer build replaces it.
+  - name: diarizer
+    newName: ghcr.io/finkrug/takeaway
+    newTag: "pending"
