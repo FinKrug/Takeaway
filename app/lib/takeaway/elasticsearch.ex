@@ -152,18 +152,21 @@ defmodule Takeaway.Elasticsearch do
   Ensures all required indices exist with proper mappings.
   """
   def init_indices do
-    Enum.each(@indices, fn {index_name, schema} ->
-      unless index_exists?(index_name) do
-        Logger.info("[Elasticsearch] Creating index: #{index_name}")
-        create_index(index_name, schema)
+    Enum.reduce_while(@indices, :ok, fn {index_name, schema}, :ok ->
+      case Req.head(client(), url: "/#{index_name}") do
+        {:ok, %{status: 200}} -> {:cont, :ok}
+        {:ok, %{status: 404}} ->
+          Logger.info("[Elasticsearch] Creating index: #{index_name}")
+
+          case create_index(index_name, schema) do
+            {:ok, _} -> {:cont, :ok}
+            err -> {:halt, err}
+          end
+
+        {:ok, %{status: status}} -> {:halt, {:error, {:status, status}}}
+        {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
-
-    :ok
-  rescue
-    e ->
-      Logger.warning("[Elasticsearch] Failed to init indices: #{inspect(e)}")
-      {:error, e}
   end
 
   @doc """
