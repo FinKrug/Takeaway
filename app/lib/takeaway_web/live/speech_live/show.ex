@@ -1,8 +1,9 @@
 defmodule TakeawayWeb.SpeechLive.Show do
-  @moduledoc "Speaker's speech page: Start Speech button, join link/code, leaderboard placeholder."
+  @moduledoc "Speaker's speech page with live question groups and transcript."
   use TakeawayWeb, :live_view
 
-  alias Takeaway.{Speeches, SpeechCreator, Summaries}
+  alias Takeaway.{Speeches, SpeechCreator, Summaries, Transcripts, Questions}
+  alias TakeawayWeb.SpeakerLive
 
   @impl true
   def mount(%{"code" => code}, _session, socket) do
@@ -16,7 +17,11 @@ defmodule TakeawayWeb.SpeechLive.Show do
          socket |> put_flash(:error, "Speech not found") |> push_navigate(to: ~p"/speeches/new")}
 
       speech ->
-        if connected?(socket), do: SpeechCreator.subscribe(speech.id)
+        if connected?(socket) do
+          SpeechCreator.subscribe(speech.id)
+          Transcripts.subscribe(speech.id)
+          Questions.subscribe(speech.id)
+        end
 
         {:ok,
          socket
@@ -25,9 +30,17 @@ defmodule TakeawayWeb.SpeechLive.Show do
          |> assign(:artifacts, Speeches.list_artifacts(speech.id))
          |> assign(:summary, nil)
          |> assign(:summary_locked, false)
+         |> stream(:segments, initial_segments(speech))
+         |> refresh_groups()
          |> load_summary()}
     end
   end
+
+  # Render from started_at on load, not only from the broadcast.
+  defp initial_segments(%{started_at: %DateTime{}} = speech),
+    do: Transcripts.list_segments(speech.id)
+
+  defp initial_segments(_speech), do: []
 
   # Generates (once) or loads the cached speaker summary after the speech ended.
   defp load_summary(%{assigns: %{speech: %{ended_at: %DateTime{} = _}}} = socket) do
@@ -85,6 +98,25 @@ defmodule TakeawayWeb.SpeechLive.Show do
 
   def handle_info({:speech_started, speech}, socket) do
     {:noreply, assign(socket, :speech, speech)}
+  end
+
+  def handle_info({:transcript_segment, seg}, socket),
+    do: {:noreply, stream_insert(socket, :segments, seg)}
+
+  def handle_info({event, _}, socket)
+      when event in [
+             :question_created,
+             :question_retracted,
+             :question_groups_updated,
+             :question_answered
+           ] do
+    {:noreply, refresh_groups(socket)}
+  end
+
+  defp refresh_groups(socket) do
+    stream(socket, :question_groups, Questions.list_top_groups(socket.assigns.speech.id),
+      reset: true
+    )
   end
 
   @impl true
@@ -260,14 +292,45 @@ defmodule TakeawayWeb.SpeechLive.Show do
         </div>
       </.card>
 
-      <.empty_state
+      <div
         :if={@speech.started_at && is_nil(@speech.ended_at)}
-        id="leaderboard-panel"
-        icon="hero-chat-bubble-left-right"
-        title="Live question leaderboard"
+        id="live-panels"
+        class="grid grid-cols-1 gap-4 lg:grid-cols-2"
       >
-        Questions from attendees will appear here.
-      </.empty_state>
+        <.card id="leaderboard-panel" title="Live question leaderboard">
+          <p class="mb-3 text-sm text-muted">
+            Similar questions are grouped. Most asked comes first.
+          </p>
+
+          <div id="question-leaderboard" phx-update="stream" class="space-y-3">
+            <p id="leaderboard-empty" class="hidden only:block text-sm text-muted">
+              Questions from attendees will appear here.
+            </p>
+
+            <div
+              :for={{id, group} <- @streams.question_groups}
+              id={id}
+              class="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 motion-safe:animate-enter"
+            >
+              <.badge tone="brand" class="shrink-0 tabular-nums">{group.count}</.badge>
+
+              <p class="min-w-0 break-words text-sm font-medium text-ink">{group.text}</p>
+            </div>
+          </div>
+        </.card>
+
+        <.card id="transcript-panel" title="Live transcript">
+          <SpeakerLive.transcript_list
+            id="panel-transcript"
+            segments={@streams.segments}
+            class="max-h-80 overflow-y-auto text-sm"
+          >
+            <:empty>
+              The transcript will appear here once the speaker starts talking.
+            </:empty>
+          </SpeakerLive.transcript_list>
+        </.card>
+      </div>
     </Layouts.app>
     """
   end

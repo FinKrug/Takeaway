@@ -10,7 +10,8 @@ resources:
   - httproute.yaml
   - db.yaml
   - whisper.yaml
+  - elasticsearch.yaml
 images:
   - name: app
     newName: ghcr.io/finkrug/takeaway
-    newTag: "a9048db"
+    newTag: "d51e9ff"
