@@ -77,6 +77,20 @@ Your repo and your image are public, so an API key for a hosted AI model, or any
 
 Argo CD leaves this Secret alone, even with `prune: true`: it only prunes what it deployed from git. Never put a key in the code, the Dockerfile, a build argument or a commit, and don't log it. If one does reach GitHub or your image, revoke it with the provider and make a new one. Your agent's recipe for this, plus one-off Jobs, dependencies and checking the running app, is in [`examples/agent-workflows`](examples/agent-workflows/README.md).
 
+## Traces in Dash0
+
+The app sends OpenTelemetry traces (every HTTP request, Phoenix route and LiveView, and Ecto query) to Dash0's US East region, dataset `default`. It stays off until the pods have a Dash0 token, so nothing breaks without one. Kubernetes probe requests (`/healthz`, `/readyz`) are never traced.
+
+1. **Create a token.** In Dash0, open **Settings** > **Auth Tokens** and create one that can ingest data.
+2. **Add it to the existing Secret.** `app-credentials` already holds `secret-key-base`, which the app needs to start: add a key, don't replace the Secret. In Radar Cloud, open your cluster, then **Resources** > **Secrets**, open `app-credentials` in `team-takeaway`, add `dash0-auth-token: <your token>` under `stringData`, and click **Apply**. Or, with [kubectl](#kubectl):
+   ```bash
+   read -rs DASH0_TOKEN   # paste the token, then press Enter
+   kubectl -n team-takeaway patch secret app-credentials --type merge -p "{\"stringData\":{\"dash0-auth-token\":\"$DASH0_TOKEN\"}}"
+   ```
+3. **Restart the app** (`manage_workload` through Radar, or `kubectl -n team-takeaway rollout restart deployment/app`) so the pods read it. Within a minute, the service `takeaway` appears in Dash0's **Services**.
+
+Another region or dataset? Set `DASH0_OTLP_ENDPOINT` or `DASH0_DATASET` on the `app` container in `deploy/deployment.yaml`.
+
 ## What Radar can do for you
 
 Pick what your project needs. None of it is required, and more doesn't score higher.
