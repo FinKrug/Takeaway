@@ -2,7 +2,7 @@ defmodule Takeaway.Questions.Tagging do
   @moduledoc "Best-effort question context. Submission offsets stay unchanged; matched context has its own offset."
   import Ecto.Query
   require Logger
-  alias Takeaway.{Elasticsearch, Questions, Repo, Speeches}
+  alias Takeaway.{Elasticsearch, Questions, Repo, Slides, Speeches, SpeechCreator}
   alias Takeaway.Questions.{Grouping, Question}
   alias Takeaway.Speeches.{Artifact, TranscriptSegment}
   alias Takeaway.Slides.Slide
@@ -15,18 +15,26 @@ defmodule Takeaway.Questions.Tagging do
   ]
 
   @doc "Capture local context only. Failure never undoes an already saved question."
-  def attach_current(question, speech) do
+  def attach_current(question, speech, opts \\ []) do
     segment =
       if question.source == "verbal",
         do: Repo.get(TranscriptSegment, question.transcript_segment_id),
         else: active_segment(question.speech_id, question.offset_ms)
 
     current = Speeches.get_speech(speech.id) || speech
-    slide = question.slide_number || Map.get(current, :current_slide)
 
-    save(question, segment, slide,
-      slide_source: if(question.slide_number, do: "manual", else: "current")
-    )
+    source =
+      case Keyword.get(opts, :slide_source) do
+        source when source in ["current", "manual"] -> source
+        _ -> if(question.slide_number, do: "manual", else: "current")
+      end
+
+    slide =
+      if source == "manual",
+        do: question.slide_number,
+        else: SpeechCreator.current_slide(current, Slides.count_slides(current.id))
+
+    save(question, segment, slide, slide_source: source)
   rescue
     error ->
       Logger.warning("Question context unavailable: #{Exception.message(error)}")
@@ -150,8 +158,9 @@ defmodule Takeaway.Questions.Tagging do
           slide_source = Keyword.get(opts, :slide_source)
 
           replace_slide? =
-            slide && current.slide_source != "manual" &&
-              (current.slide_number == nil || slide_source == "matched")
+            (is_nil(current.slide_source) and slide_source in ["current", "manual"]) or
+              (slide && current.slide_source != "manual" &&
+                 (current.slide_number == nil || slide_source == "matched"))
 
           slide = if replace_slide?, do: slide, else: current.slide_number
 

@@ -24,6 +24,31 @@ defmodule TakeawayWeb.JoinLiveTest do
     q
   end
 
+  defp stub_earlier_slide(speech) do
+    {:ok, _} =
+      Takeaway.Slides.upsert_slides(
+        speech.id,
+        ["Distributed consensus work", "Unrelated topic", "More topics", "End"]
+      )
+
+    old = Application.fetch_env!(:takeaway, :elasticsearch)
+
+    Application.put_env(
+      :takeaway,
+      :elasticsearch,
+      Keyword.put(old, :request_options, plug: {Req.Test, __MODULE__})
+    )
+
+    on_exit(fn -> Application.put_env(:takeaway, :elasticsearch, old) end)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      hits =
+        if conn.request_path == "/slides/_search", do: [%{_source: %{slide_number: 1}}], else: []
+
+      Req.Test.json(conn, %{hits: %{hits: hits}})
+    end)
+  end
+
   describe "waiting room" do
     test "notes open, questions closed until the speech starts, then live without reload",
          %{conn: conn, speech: speech} do
@@ -216,6 +241,89 @@ defmodule TakeawayWeb.JoinLiveTest do
 
   describe "current slide" do
     setup :started
+
+    test "automatic form default can be refined to an earlier slide and updates the chip",
+         %{conn: conn, speech: speech} do
+      stub_earlier_slide(speech)
+      {:ok, speech} = SpeechCreator.set_current_slide(speech, 2, 4)
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+
+      lv
+      |> form("#question-form", question: %{text: "How does distributed consensus work?"})
+      |> render_submit()
+
+      assert [q] = Questions.list_questions(speech.id)
+      assert q.slide_source == "current"
+      assert q.slide_number == 2
+      enriched = Takeaway.Questions.Tagging.enrich(q.id)
+      assert enriched.slide_source == "matched"
+      assert enriched.slide_number == 1
+      assert has_element?(lv, "#question-#{q.id}", "Slide 1")
+    end
+
+    test "explicitly choosing the current slide stays manual as the speaker moves",
+         %{conn: conn, speech: speech} do
+      stub_earlier_slide(speech)
+      {:ok, speech} = SpeechCreator.set_current_slide(speech, 2, 4)
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+
+      render_change(lv, "validate_question", %{
+        "_target" => ["question", "slide_number"],
+        "question" => %{"text" => "How does distributed consensus work?", "slide_number" => "2"}
+      })
+
+      {:ok, _} = SpeechCreator.set_current_slide(speech, 3, 4)
+      assert has_element?(lv, "#question-slide[value='2']")
+      lv |> form("#question-form") |> render_submit()
+      assert [q] = Questions.list_questions(speech.id)
+      assert q.slide_source == "manual"
+      assert Takeaway.Questions.Tagging.enrich(q.id).slide_number == 2
+    end
+
+    test "clearing is preserved through submission and reset resumes following the speaker",
+         %{conn: conn, speech: speech} do
+      stub_earlier_slide(speech)
+      {:ok, speech} = SpeechCreator.set_current_slide(speech, 2, 4)
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+
+      lv
+      |> form("#question-form",
+        question: %{
+          text: "How does distributed consensus work?",
+          slide_number: ""
+        }
+      )
+      |> render_change()
+
+      {:ok, _} = SpeechCreator.set_current_slide(speech, 3, 4)
+      refute has_element?(lv, "#question-slide[value='3']")
+      lv |> form("#question-form") |> render_submit()
+      assert [q] = Questions.list_questions(speech.id)
+      assert q.slide_source == "manual"
+      assert q.slide_number == nil
+      assert Takeaway.Questions.Tagging.enrich(q.id).slide_number == nil
+      assert has_element?(lv, "#question-slide[value='3']")
+      {:ok, _} = SpeechCreator.set_current_slide(speech, 4, 4)
+      assert has_element?(lv, "#question-slide[value='4']")
+    end
+
+    test "submit-only manual choice is recognized and forged provenance is ignored",
+         %{conn: conn, speech: speech} do
+      {:ok, speech} = SpeechCreator.set_current_slide(speech, 2, 0)
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+
+      render_submit(lv, "submit_question", %{
+        "question" => %{
+          "text" => "What about the earlier slide?",
+          "slide_number" => "1",
+          "slide_source" => "current"
+        }
+      })
+
+      assert [q] = Questions.list_questions(speech.id)
+      assert q.slide_source == "manual"
+      assert q.slide_number == 1
+    end
 
     test "is shown, follows the speaker and tags submitted questions",
          %{conn: conn, speech: speech} do

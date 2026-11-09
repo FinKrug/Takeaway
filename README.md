@@ -36,6 +36,10 @@ questions continue to use the transcript heuristic separately.
 Questions show a compact tag such as `Slide 4 · 12:34`. Submission time stays in
 `offset_ms`; the related transcript segment and its start time are stored separately
 as `context_segment_id` and `context_offset_ms`. An explicit attendee slide wins.
+The prefilled slide stays automatic and can be matched to an earlier slide. Editing
+the slide field, including clearing it, preserves that choice for the draft even
+as the speaker moves. After a successful submission the fresh form follows the
+speaker again. Automatic capture reads the current slide from fresh database state.
 When speaker slide controls provide `speech.current_slide`, that slide is captured
 from the database at submission time. Without slide controls or uploaded slides,
 the tag can contain just the time.
