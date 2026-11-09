@@ -50,6 +50,16 @@ if stt_url = System.get_env("STT_URL") do
     model: System.get_env("STT_MODEL") || "whisper-1"
 end
 
+# Post-speech summaries: set ANTHROPIC_API_KEY to have Claude write them.
+# Without it a plain extractive summary is generated instead.
+if anthropic_key = System.get_env("ANTHROPIC_API_KEY") do
+  config :takeaway, :llm, Takeaway.LLM.Anthropic
+
+  config :takeaway, Takeaway.LLM.Anthropic,
+    api_key: anthropic_key,
+    model: System.get_env("ANTHROPIC_MODEL") || "claude-sonnet-4-5"
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
