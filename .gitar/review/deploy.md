@@ -20,7 +20,7 @@ Every push to `main` builds an image and Argo CD deploys `deploy/` to namespace 
 - The app listens on `PORT` 8080 (`containerPort` named `http`). Probes hit `/healthz` (liveness) and `/readyz` (readiness). If routes or ports change, the probes must change with them.
 - The `migrate` init container and the `app` container must get the same `DATABASE_URL` and `SECRET_KEY_BASE` env. A new runtime env var the release needs at boot must be added to both.
 - Keep the existing `securityContext` (`runAsNonRoot`, drop `ALL`, `RuntimeDefault` seccomp) on every container. The Dockerfile runs as UID 65534; don't switch it to root.
-- If the PR adds an HPA (`examples/hpa`), it must also remove `replicas:` from `deploy/deployment.yaml`, or Argo CD and the autoscaler fight.
+- If the PR adds an HPA, it must also remove `replicas:` from `deploy/deployment.yaml`, or Argo CD and the autoscaler fight.
 - Changes that only touch `**.md` or `deploy/kustomization.yaml` don't trigger a build (`paths-ignore`). A PR that changes app code *and* expects a redeploy must touch something outside those paths.
 
 ## Don't touch pre-installed platform pieces

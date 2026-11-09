@@ -1,13 +1,12 @@
-# Takeaway
+# Takeaway (Phoenix app)
 
-To start your Phoenix server:
+See the [root README](../README.md) for what the app does, configuration and deployment.
 
-* Run `mix setup` to install and setup dependencies
-* Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
-
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
-
-Ready to run in production? Please [check our deployment guides](https://phoenix.hexdocs.pm/deployment.html).
+```bash
+mix setup        # deps, database, assets
+mix phx.server   # http://localhost:4000 (or iex -S mix phx.server)
+mix test
+```
 
 ## Post-speech summaries
 
@@ -22,11 +21,3 @@ The speaker's **End Speech** button sets `ended_at` and broadcasts `{:speech_end
 Prose comes from `Takeaway.LLM`. Set `ANTHROPIC_API_KEY` (optionally `ANTHROPIC_MODEL`) to use
 Claude; without it, or if the call fails, an extractive fallback is stored. Speeches with no
 transcript and/or no questions yield a summary that says so.
-
-## Learn more
-
-* Official website: https://www.phoenixframework.org/
-* Guides: https://phoenix.hexdocs.pm/overview.html
-* Docs: https://phoenix.hexdocs.pm
-* Forum: https://elixirforum.com/c/phoenix-forum
-* Source: https://github.com/phoenixframework/phoenix

@@ -10,10 +10,6 @@ defmodule TakeawayWeb.Router do
     plug :put_secure_browser_headers
   end
 
-  pipeline :api do
-    plug :accepts, ["json"]
-  end
-
   # Kubernetes probes: no session, no CSRF.
   scope "/", TakeawayWeb do
     get "/healthz", HealthController, :show
@@ -31,11 +27,6 @@ defmodule TakeawayWeb.Router do
     live "/join/:code", SpeechLive.Join
     live "/speeches/:id/speak", SpeakerLive
   end
-
-  # Other scopes may use custom stacks.
-  # scope "/api", TakeawayWeb do
-  #   pipe_through :api
-  # end
 
   # Enable LiveDashboard in development
   if Application.compile_env(:takeaway, :dev_routes) do
