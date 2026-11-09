@@ -28,7 +28,7 @@ Skip this if `deploy/kustomization.yaml` already lists `rollout.yaml`.
 
 ## 1. Ship the new version
 
-Push the change and follow the `ship` skill through step 3 (build, sync). Then call `wait_for` with `kind: rollout`, `name: app`, `condition: jsonpath={.status.phase}=Paused`, repeating up to about 5 minutes. It's now at the 25% step.
+Ship the change through a pull request and follow the `ship` skill through step 4 (PR, Gitar review, merge, build, sync). Then call `wait_for` with `kind: rollout`, `name: app`, `condition: jsonpath={.status.phase}=Paused`, repeating up to about 5 minutes. It's now at the 25% step.
 
 ## 2. Check the canary before promoting
 
@@ -48,7 +48,7 @@ Use `promote-full` (skip every step) only when the person asks for it.
 
 Call `manage_rollout` with `action: abort`. The stable version takes all the pods back at once, and the rollout stays aborted. Check with curl that only the old version answers.
 
-Then find the cause with the `debug-failure` skill, fix it in git, and push. The new version starts a fresh canary at step 1. Use `retry` only to re-run the same version, for example after fixing a config outside the image.
+Then find the cause with the `debug-failure` skill and ship the fix through a pull request (the `ship` skill). The new version starts a fresh canary at step 1. Use `retry` only to re-run the same version, for example after fixing a config outside the image.
 
 ## Don't
 

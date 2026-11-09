@@ -156,12 +156,14 @@ lists replace as whole units and null/type changes remove prior values. Replacin
 a container with hidden credentials is refused unless you explicitly replace the
 whole reviewed values configuration.
 
-## Confirm that your push is actually live
+## Confirm that your merge is actually live
 
-The image tag is the first seven characters of the app commit that triggered
-`build-and-deploy`, not the later bot commit that updates the manifests.
+Changes reach `main` through a pull request reviewed by Gitar (the `ship` skill,
+steps 1 and 2), never a direct push. The image tag is the first seven characters of
+the merge commit on `main` that triggered `build-and-deploy`, not the later bot
+commit that updates the manifests.
 
-1. Save the pushed commit SHA. Check that commit's GitHub Actions run, for example
+1. Save the merge commit's SHA. Check that commit's GitHub Actions run, for example
    `gh run list --workflow build-and-deploy --commit <FULL-SHA>`, then
    `gh run watch <RUN-ID> --exit-status`. If the build failed, inspect its logs before
    debugging Kubernetes. Retry briefly if the run is not registered yet, within the

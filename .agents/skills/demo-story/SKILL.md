@@ -14,7 +14,7 @@ The team is `<team>` from `namespace: team-<team>` in `deploy/kustomization.yaml
 3. **The investigation.** You can't list hosted investigations. Ask which one they ran and what it found. Only the person who started it can open it, unless they shared it: they open it at `https://app.radarhq.io/c/<cluster-id>/investigations`. If they haven't run one, say so now: there's still time, and an all-clear counts.
 4. **Write it.** Add `## The story` to `STORY.md`: 5 bullets, each one sentence with its evidence (a commit, a change, a finding):
    - what we built, and who it helps at a conference;
-   - how we shipped: push, Argo CD sync through Radar, how many releases;
+   - how we shipped: pull requests reviewed by Gitar (what it caught), merge, Argo CD sync through Radar, traces in Dash0, how many releases;
    - what broke, or what we checked, and what Radar showed;
    - the investigation and what we did with it;
    - Checks before and after.
