@@ -487,6 +487,10 @@ defmodule TakeawayWeb.SpeechLive.Join do
             Summaries are not included in this event's plan.
           </p>
 
+          <p id="summary-announcer" role="status" class="sr-only">
+            <span :if={@summary}>Your summary is ready.</span>
+          </p>
+
           <p
             :if={is_nil(@summary) and not @summary_locked}
             id="summary-loading"
@@ -501,9 +505,9 @@ defmodule TakeawayWeb.SpeechLive.Join do
             </p>
 
             <div :if={@summary.content["notes"] != []} id="my-notes">
-              <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+              <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
                 Your notes
-              </h3>
+              </h2>
 
               <div class="space-y-2">
                 <p
@@ -558,6 +562,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
                   field={@note_form[:body]}
                   id="note-body"
                   type="textarea"
+                  label="Your notes"
+                  aria-describedby="note-help note-status"
                   rows="10"
                   phx-debounce="1000"
                   maxlength={Note.max_length()}
@@ -565,7 +571,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
                   placeholder="Jot down what you want to remember..."
                 />
                 <div class="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
-                  <span>Only you can see your notes.</span>
+                  <span id="note-help">Only you can see your notes.</span>
                   <span id="note-status" class="shrink-0" aria-live="polite">
                     <span class="hidden items-center gap-1.5 phx-change-loading:inline-flex">
                       <.spinner class="size-3" /> Saving...
@@ -631,6 +637,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
                     label="Ask the speaker"
                     maxlength={max_question_length()}
                     placeholder="What would you like to know?"
+                    required
                   />
                   <div class="grid grid-cols-[6.5rem_1fr] items-end gap-3">
                     <.input
@@ -692,6 +699,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
                         id={"retract-question-#{item.id}"}
                         phx-click="retract"
                         phx-value-id={item.id}
+                        aria-label="Retract your question"
                         data-confirm="Retract this question?"
                         variant="ghost"
                         class="-my-2 ml-auto text-muted"

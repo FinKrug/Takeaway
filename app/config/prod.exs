@@ -14,7 +14,8 @@ config :takeaway, TakeawayWeb.Endpoint,
   force_ssl: [
     rewrite_on: [:x_forwarded_proto],
     exclude: [
-      # paths: ["/health"],
+      # Kubernetes probes hit the pod by IP over plain HTTP, so they must not be redirected.
+      paths: ["/healthz", "/readyz"],
       hosts: ["localhost", "127.0.0.1"]
     ]
   ]
