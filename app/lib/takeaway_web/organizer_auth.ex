@@ -25,7 +25,10 @@ defmodule TakeawayWeb.OrganizerAuth do
   end
 
   def log_out(conn) do
-    conn |> configure_session(drop: true) |> redirect(to: ~p"/")
+    conn
+    |> configure_session(renew: true)
+    |> delete_session(:organizer_id)
+    |> redirect(to: ~p"/")
   end
 
   @doc "Plug: assigns `:current_organizer` (or nil) from the session."

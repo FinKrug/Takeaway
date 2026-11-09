@@ -30,7 +30,10 @@ defmodule TakeawayWeb.UserAuth do
   end
 
   def log_out(conn) do
-    conn |> configure_session(drop: true) |> redirect(to: ~p"/")
+    conn
+    |> configure_session(renew: true)
+    |> delete_session(:user_id)
+    |> redirect(to: ~p"/")
   end
 
   def home_path(%{role: "speaker"}), do: ~p"/speaker"
