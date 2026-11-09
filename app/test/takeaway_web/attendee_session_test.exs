@@ -27,7 +27,7 @@ defmodule TakeawayWeb.AttendeeSessionTest do
   end
 
   setup do
-    {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Talk"})
+    {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Talk"}, [], event: {:new, "Conf"})
     %{speech: speech}
   end
 

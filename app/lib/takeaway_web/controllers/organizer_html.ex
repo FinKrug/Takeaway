@@ -102,7 +102,7 @@ defmodule TakeawayWeb.OrganizerHTML do
         icon="hero-calendar-days"
         title="No events yet"
       >
-        No events yet. Create a speech and your event is set up for you.
+        No events yet. Choose "New conference…" when you create a speech to start one.
       </.empty_state>
 
       <ul id="events" class="space-y-3">

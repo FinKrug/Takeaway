@@ -1,7 +1,7 @@
 defmodule Takeaway.Organizers do
   @moduledoc """
-  Organizer accounts. Organizers own events; the organizer pages (tickets,
-  speech control and speaker pages) are reachable only by an event's owner.
+  Organizer accounts. Organizers own events and speeches; the organizer pages (tickets,
+  speech control and speaker pages) are reachable only by their owner.
 
   Passwords are stored as salted PBKDF2-SHA256 hashes (`pbkdf2$iterations$salt$hash`).
   """
@@ -35,8 +35,10 @@ defmodule Takeaway.Organizers do
   def owns_event?(%Organizer{id: id}, %Event{organizer_id: id}) when not is_nil(id), do: true
   def owns_event?(_organizer, _event), do: false
 
-  @doc "True when `organizer` owns the event the speech belongs to."
-  def owns_speech?(%Organizer{} = organizer, %{event_id: event_id}) do
+  @doc "True when `organizer` owns the speech, or the conference (event) it belongs to."
+  def owns_speech?(%Organizer{id: id}, %{organizer_id: id}) when not is_nil(id), do: true
+
+  def owns_speech?(%Organizer{} = organizer, %{event_id: event_id}) when not is_nil(event_id) do
     case Repo.get(Event, event_id) do
       %Event{} = event -> owns_event?(organizer, event)
       nil -> false
