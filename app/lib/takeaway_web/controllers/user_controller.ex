@@ -10,19 +10,32 @@ defmodule TakeawayWeb.UserController do
 
   alias Takeaway.Accounts
   alias Takeaway.Accounts.User
+  alias Takeaway.Speeches.Speech
+  alias TakeawayWeb.SpeechList
   alias TakeawayWeb.UserAuth
 
   def speaker_dashboard(conn, _params) do
+    speeches = Accounts.list_speeches_for_speaker(conn.assigns.current_user)
+
     render(conn, :speaker_dashboard,
       page_title: "Your speeches",
-      speeches: Accounts.list_speeches_for_speaker(conn.assigns.current_user)
+      speeches: speeches,
+      live: Enum.filter(speeches, &(Speech.status(&1) == :live)),
+      counts: SpeechList.status_counts(speeches),
+      groups: SpeechList.group_by_conference(speeches)
     )
   end
 
   def account(conn, _params) do
+    user = conn.assigns.current_user
+    speeches = Accounts.list_speeches_for_attendee(user)
+
     render(conn, :account,
-      page_title: "Your account",
-      speeches: Accounts.list_speeches_for_attendee(conn.assigns.current_user)
+      page_title: "Your talks",
+      speeches: speeches,
+      counts: SpeechList.status_counts(speeches),
+      groups: SpeechList.group_by_conference(speeches),
+      activity: Accounts.attendee_activity(user)
     )
   end
 

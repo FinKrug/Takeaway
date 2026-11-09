@@ -104,6 +104,51 @@ defmodule TakeawayWeb.Layouts do
   end
 
   @doc """
+  One signed-in identity in the account strip: a role badge (Organizer, Speaker or
+  Attendee) with the name, a link to that role's home page and its log-out link. An
+  organizer can be signed in as a speaker or attendee too; each gets its own entry.
+  """
+  attr :id, :string, required: true
+  attr :role, :string, required: true
+  attr :icon, :string, required: true
+  attr :name, :string, required: true
+  attr :name_id, :string, default: nil
+  attr :home_id, :string, required: true
+  attr :home, :string, required: true
+  attr :home_label, :string, required: true
+  attr :log_out_id, :string, required: true
+  attr :log_out, :string, required: true
+
+  def account_identity(assigns) do
+    ~H"""
+    <div id={@id} class="account-identity flex min-w-0 items-center gap-2">
+      <span class="sr-only">Signed in as</span>
+      <.badge tone="brand" class="role-badge shrink-0">
+        <.icon name={@icon} class="size-3.5" /> {@role}
+      </.badge>
+      <span id={@name_id} class="min-w-0 max-w-[10rem] truncate font-semibold sm:max-w-[16rem]">
+        {@name}
+      </span>
+      <.link
+        id={@home_id}
+        href={@home}
+        class="shrink-0 rounded-lg px-2 py-2 font-semibold text-brand-strong underline-offset-4 hover:underline"
+      >
+        {@home_label}
+      </.link>
+      <.link
+        id={@log_out_id}
+        href={@log_out}
+        method="delete"
+        class="shrink-0 rounded-lg px-2 py-2 font-semibold text-muted hover:bg-sunken hover:text-ink"
+      >
+        Log out
+      </.link>
+    </div>
+    """
+  end
+
+  @doc """
   Shows the flash group with standard titles and content.
 
   ## Examples

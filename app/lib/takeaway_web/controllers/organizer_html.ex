@@ -2,6 +2,8 @@ defmodule TakeawayWeb.OrganizerHTML do
   @moduledoc "Pages rendered by OrganizerController."
   use TakeawayWeb, :html
 
+  import TakeawayWeb.SpeechList
+
   def log_in(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
@@ -77,9 +79,13 @@ defmodule TakeawayWeb.OrganizerHTML do
   def dashboard(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <.header>
-        Your events
-        <:subtitle>Signed in as {@current_organizer.email}</:subtitle>
+      <.role_eyebrow icon="hero-building-office-2-mini" role="Organizer" />
+      <.header class="-mt-4">
+        Your conferences
+        <:subtitle>
+          Signed in as {@current_organizer.email}. Every conference you run and the speeches in
+          it.
+        </:subtitle>
         <:actions>
           <.button id="new-speech" href={~p"/speeches/new"} size="sm">
             <.icon name="hero-plus-mini" class="size-4" /> New speech
@@ -96,30 +102,58 @@ defmodule TakeawayWeb.OrganizerHTML do
         </:actions>
       </.header>
 
+      <.status_summary :if={@speeches != []} counts={@counts} />
+
       <.empty_state
-        :if={@events == []}
+        :if={@groups == []}
         id="no-events"
         icon="hero-calendar-days"
-        title="No events yet"
+        title="No conferences or speeches yet"
       >
-        No events yet. Choose "New conference…" when you create a speech to start one.
+        Create a speech to get started. Choose "New conference…" to group several talks under
+        one event.
       </.empty_state>
 
-      <ul id="events" class="space-y-3">
-        <li :for={event <- @events} id={"event-#{event.id}"}>
-          <.card class="flex items-center justify-between gap-3">
-            <span class="min-w-0 truncate font-semibold">{event.name}</span>
+      <div id="events">
+        <.conference_groups groups={@groups} empty_group="No speeches in this conference yet.">
+          <:group_actions :let={event}>
             <.button
               href={Takeaway.Events.tickets_path(event)}
               variant="secondary"
               size="sm"
-              class="tickets-link shrink-0"
+              class="tickets-link"
             >
               <.icon name="hero-ticket-mini" class="size-4" /> Manage tickets
             </.button>
-          </.card>
-        </li>
-      </ul>
+          </:group_actions>
+          <:meta :let={speech}>
+            <span class="speaker-name">
+              <.icon name="hero-microphone-mini" class="size-3.5" />
+              {if speech.speaker,
+                do: speech.speaker.name || speech.speaker.email,
+                else: "No speaker yet"}
+            </span>
+          </:meta>
+          <:actions :let={speech}>
+            <.button
+              href={~p"/speeches/#{speech.join_code}"}
+              variant="secondary"
+              size="sm"
+              class="manage-link"
+            >
+              Manage
+            </.button>
+            <.button
+              href={~p"/speeches/#{speech.id}/speak"}
+              variant="ghost"
+              size="sm"
+              class="speak-link"
+            >
+              Speaker page
+            </.button>
+          </:actions>
+        </.conference_groups>
+      </div>
     </Layouts.app>
     """
   end

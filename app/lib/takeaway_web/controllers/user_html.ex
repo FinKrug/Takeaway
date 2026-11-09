@@ -2,6 +2,8 @@ defmodule TakeawayWeb.UserHTML do
   @moduledoc "Pages rendered by UserController."
   use TakeawayWeb, :html
 
+  import TakeawayWeb.SpeechList
+
   def log_in(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
@@ -147,10 +149,33 @@ defmodule TakeawayWeb.UserHTML do
   def speaker_dashboard(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <.header>
+      <.role_eyebrow icon="hero-microphone-mini" role="Speaker" />
+      <.header class="-mt-4">
         Your speeches
-        <:subtitle>Signed in as {@current_user.name} ({@current_user.email})</:subtitle>
+        <:subtitle>
+          Signed in as {@current_user.name} ({@current_user.email}). Talks you give, by
+          conference.
+        </:subtitle>
+        <:actions>
+          <.log_out_button />
+        </:actions>
       </.header>
+
+      <.card :for={speech <- @live} id={"live-now-#{speech.id}"} tone="brand" class="space-y-3">
+        <p class="flex items-center gap-2 font-semibold text-success">
+          <span class="size-2 rounded-full bg-current motion-safe:animate-pulse" aria-hidden="true" />
+          You're live: {speech.title}
+        </p>
+        <.button href={~p"/speeches/#{speech.id}/speak"} class="w-full sm:w-auto">
+          Open speaker page
+        </.button>
+      </.card>
+
+      <.status_summary
+        :if={@speeches != []}
+        counts={@counts}
+        labels={%{live: "Live now", upcoming: "To give", ended: "Given"}}
+      />
 
       <.empty_state
         :if={@speeches == []}
@@ -158,24 +183,26 @@ defmodule TakeawayWeb.UserHTML do
         icon="hero-presentation-chart-bar"
         title="No speeches yet"
       >
-        No speeches yet. An organizer adds you to a speech with your email address.
+        An organizer adds you to a speech with your email address ({@current_user.email}).
+        Once they do, it shows up here, under its conference.
       </.empty_state>
 
-      <ul id="speeches" class="space-y-3">
-        <li :for={speech <- @speeches} id={"speech-#{speech.id}"}>
-          <.card class="flex items-center justify-between gap-3">
-            <span class="min-w-0 truncate font-semibold">{speech.title}</span>
+      <div id="speeches">
+        <.conference_groups groups={@groups}>
+          <:actions :let={speech}>
             <.button
               href={~p"/speeches/#{speech.id}/speak"}
-              variant="secondary"
+              variant={
+                if Takeaway.Speeches.Speech.status(speech) == :live, do: "primary", else: "secondary"
+              }
               size="sm"
-              class="speak-link shrink-0"
+              class="speak-link"
             >
               Open speaker page
             </.button>
-          </.card>
-        </li>
-      </ul>
+          </:actions>
+        </.conference_groups>
+      </div>
     </Layouts.app>
     """
   end
@@ -183,10 +210,22 @@ defmodule TakeawayWeb.UserHTML do
   def account(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <.header>
-        Your account
-        <:subtitle>{@current_user.name || "Attendee"} ({@current_user.email})</:subtitle>
+      <.role_eyebrow icon="hero-user-mini" role="Attendee" />
+      <.header class="-mt-4">
+        Your talks
+        <:subtitle>
+          Signed in as {@current_user.name || "Attendee"} ({@current_user.email}). Talks where
+          you asked a question or took notes, by conference.
+        </:subtitle>
+        <:actions>
+          <.button href={~p"/#join"} size="sm" id="join-a-talk">
+            <.icon name="hero-arrow-right-end-on-rectangle-mini" class="size-4" /> Join a talk
+          </.button>
+          <.log_out_button />
+        </:actions>
       </.header>
+
+      <.status_summary :if={@speeches != []} counts={@counts} />
 
       <.empty_state
         :if={@speeches == []}
@@ -197,22 +236,44 @@ defmodule TakeawayWeb.UserHTML do
         Join a talk with its code. Questions you ask and notes you take show up here.
       </.empty_state>
 
-      <ul id="speeches" class="space-y-3">
-        <li :for={speech <- @speeches} id={"speech-#{speech.id}"}>
-          <.card class="flex items-center justify-between gap-3">
-            <span class="min-w-0 truncate font-semibold">{speech.title}</span>
+      <div id="speeches">
+        <.conference_groups groups={@groups}>
+          <:meta :let={speech}>
+            <span class="activity">{activity_text(@activity[speech.id])}</span>
+          </:meta>
+          <:actions :let={speech}>
             <.button
               href={~p"/join/#{speech.join_code}"}
               variant="secondary"
               size="sm"
-              class="join-link shrink-0"
+              class="join-link"
             >
-              Open
+              {if Takeaway.Speeches.Speech.status(speech) == :ended, do: "Review", else: "Open"}
             </.button>
-          </.card>
-        </li>
-      </ul>
+          </:actions>
+        </.conference_groups>
+      </div>
     </Layouts.app>
     """
+  end
+
+  defp log_out_button(assigns) do
+    ~H"""
+    <.button id="log-out" href={~p"/users/log_out"} method="delete" variant="secondary" size="sm">
+      Log out
+    </.button>
+    """
+  end
+
+  @doc false
+  def activity_text(nil), do: ""
+
+  def activity_text(%{questions: q, note?: note?}) do
+    [
+      q > 0 && "#{q} #{if q == 1, do: "question", else: "questions"}",
+      note? && "notes"
+    ]
+    |> Enum.filter(& &1)
+    |> Enum.join(" · ")
   end
 end
