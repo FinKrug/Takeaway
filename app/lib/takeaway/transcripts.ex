@@ -66,7 +66,8 @@ defmodule Takeaway.Transcripts do
       artifact_id: artifact.id,
       text: seg.text,
       start_ms: seg.start_ms + offset_ms,
-      end_ms: seg.end_ms + offset_ms
+      end_ms: seg.end_ms + offset_ms,
+      speaker: Map.get(seg, :speaker)
     })
   end
 end

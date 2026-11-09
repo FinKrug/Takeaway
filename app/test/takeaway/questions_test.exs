@@ -47,17 +47,25 @@ defmodule Takeaway.QuestionsTest do
     assert {:ok, %{text: "OK"}} = Questions.submit_question(s, u, %{"text" => "ok"})
   end
 
-  test "question?/1 heuristic and filter reuse" do
+  test "question?/1 heuristic" do
     assert Questions.question?("Is this live?")
     assert Questions.question?("how does it scale")
     assert Questions.question?("Can you repeat that")
+    assert Questions.question?("What's the latency")
+    assert Questions.question?("So, how does it scale")
+    assert Questions.question?("don\u2019t you think so")
     refute Questions.question?("Thanks everyone")
     refute Questions.question?("Whatever, moving on")
+    refute Questions.question?("Have a great day everyone")
+    refute Questions.question?("Do check out our booth")
+    refute Questions.question?("Will is our CTO")
     refute Questions.question?("  ")
     refute Questions.question?(nil)
+  end
 
-    Application.put_env(:takeaway, :question_filter, fn _ -> {:error, :rejected} end)
-    refute Questions.question?("Is this live?")
+  test "question?/1 does not call the submission filter" do
+    Application.put_env(:takeaway, :question_filter, fn _ -> raise "filter called" end)
+    assert Questions.question?("Is this live?")
   end
 
   test "list_question_segments returns only question segments", %{speech: s} do
@@ -69,6 +77,17 @@ defmodule Takeaway.QuestionsTest do
 
     assert ["Does it scale?"] =
              Enum.map(Takeaway.Transcripts.list_question_segments(s.id), & &1.text)
+  end
+
+  test "record_segments persists speaker labels", %{speech: s} do
+    {:ok, [a, b]} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Hello", start_ms: 0, end_ms: 500, speaker: "A"},
+        %{text: "Hi", start_ms: 500, end_ms: 900}
+      ])
+
+    assert {a.speaker, b.speaker} == {"A", nil}
+    assert ["A", nil] = Enum.map(Takeaway.Transcripts.list_segments(s.id), & &1.speaker)
   end
 
   test "owner retracts, broadcasts, disappears from list", %{speech: s, user: u, other: o} do

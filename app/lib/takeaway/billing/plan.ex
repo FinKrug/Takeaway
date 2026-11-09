@@ -19,7 +19,7 @@ defmodule Takeaway.Billing.Plan do
   def changeset(plan, attrs) do
     plan
     |> cast(attrs, [:key, :name, :features, :limits])
-    |> validate_required([:key, :name])
+    |> validate_required([:key, :name, :features, :limits])
     |> unique_constraint(:key)
   end
 end

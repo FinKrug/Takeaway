@@ -20,8 +20,8 @@ defmodule Takeaway.STT.WhisperTest do
     refute Map.has_key?(second, :speaker)
   end
 
-  test "multipart requests diarization by default and can disable it" do
-    assert Whisper.multipart("b", "x", "audio/webm", "m") =~ ~s(name="diarize"\r\n\r\ntrue)
-    refute Whisper.multipart("b", "x", "audio/webm", "m", false) =~ "diarize"
+  test "multipart requests diarization only when asked" do
+    refute Whisper.multipart("b", "x", "audio/webm", "m") =~ "diarize"
+    assert Whisper.multipart("b", "x", "audio/webm", "m", true) =~ ~s(name="diarize"\r\n\r\ntrue)
   end
 end

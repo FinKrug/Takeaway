@@ -6,6 +6,7 @@ defmodule Takeaway.Speeches.TranscriptSegment do
     field :text, :string
     field :start_ms, :integer
     field :end_ms, :integer
+    field :speaker, :string
 
     belongs_to :artifact, Takeaway.Speeches.Artifact
 
@@ -14,7 +15,7 @@ defmodule Takeaway.Speeches.TranscriptSegment do
 
   def changeset(segment, attrs) do
     segment
-    |> cast(attrs, [:text, :start_ms, :end_ms, :artifact_id])
+    |> cast(attrs, [:text, :start_ms, :end_ms, :speaker, :artifact_id])
     |> validate_required([:text, :start_ms, :end_ms, :artifact_id])
     |> validate_number(:start_ms, greater_than_or_equal_to: 0)
     |> validate_end_after_start()

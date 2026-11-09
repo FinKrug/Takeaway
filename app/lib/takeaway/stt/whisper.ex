@@ -5,8 +5,8 @@ defmodule Takeaway.STT.Whisper do
   `config :takeaway, Takeaway.STT.Whisper, url: ..., api_key: ..., model: ...`.
   Requests `verbose_json` so segments carry start/end seconds.
 
-  Speaker diarization is on by default (`diarize: true` in the config, or
-  `STT_DIARIZE=false` to turn it off, or `diarize: false` per call). When on,
+  Speaker diarization is off by default; turn it on with `diarize: true` in the
+  config (`STT_DIARIZE=true`) or per call, for a provider that supports it. When on,
   the request carries `diarize=true` and any `speaker` label the provider
   returns for a segment is passed through as `:speaker`.
   """
@@ -19,7 +19,7 @@ defmodule Takeaway.STT.Whisper do
     model = Keyword.get(opts, :model) || Keyword.get(cfg, :model, "whisper-1")
     boundary = "----takeaway" <> Base.encode16(:crypto.strong_rand_bytes(8))
 
-    diarize = Keyword.get(opts, :diarize, Keyword.get(cfg, :diarize, true))
+    diarize = Keyword.get(opts, :diarize, Keyword.get(cfg, :diarize, false))
     body = multipart(boundary, audio, content_type, model, diarize)
 
     headers =
@@ -68,7 +68,7 @@ defmodule Takeaway.STT.Whisper do
   end
 
   @doc false
-  def multipart(boundary, audio, content_type, model, diarize \\ true) do
+  def multipart(boundary, audio, content_type, model, diarize \\ false) do
     ext = if String.contains?(content_type, "ogg"), do: "ogg", else: "webm"
 
     IO.iodata_to_binary([

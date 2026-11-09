@@ -82,26 +82,42 @@ defmodule Takeaway.Questions do
     end
   end
 
-  @question_starters ~w(who what when where why how which whose whom is are am was were do does did
-                        can could will would shall should may might have has had isn't aren't
-                        don't doesn't didn't can't won't wouldn't shouldn't)
+  # Words that open a question on their own ("how does it scale").
+  @wh_words ~w(who what when where why how which whose whom
+               what's who's where's when's why's how's)
+  # Auxiliaries only open a question when a subject follows ("can you ...", not "Will is our CTO").
+  @auxiliaries ~w(is are am was were do does did can could will would shall should may might
+                  have has had isn't aren't wasn't weren't don't doesn't didn't can't couldn't
+                  won't wouldn't shouldn't haven't hasn't)
+  @subjects ~w(i you he she it we they this that these those there anyone anybody someone
+               somebody everyone)
+  # Leading fillers skipped before the first real word ("So, how does it scale").
+  @fillers ~w(so and but um uh ok okay well also then right)
 
   @doc """
-  Heuristic: does `text` look like an audience question? True when the text passes
-  `filter_text/1` and either ends with `?` or starts with an interrogative word.
+  Heuristic: does `text` look like an audience question? True when it ends with `?`,
+  starts with a wh-word, or starts with an auxiliary followed by a subject
+  ("can you ...", "is this ..."). Leading fillers like "so" or "and" are skipped.
+  Does not run the submission filter (`filter_text/1`).
   """
   def question?(text) when is_binary(text) do
     text = String.trim(text)
-
-    text != "" and match?({:ok, _}, filter_text(text)) and
-      (String.ends_with?(text, "?") or starts_with_interrogative?(text))
+    text != "" and (String.ends_with?(text, "?") or interrogative_start?(text))
   end
 
   def question?(_), do: false
 
-  defp starts_with_interrogative?(text) do
-    case text |> String.downcase() |> String.split(~r/[\s,]+/, parts: 2) do
-      [first, _rest] -> first in @question_starters
+  defp interrogative_start?(text) do
+    words =
+      text
+      |> String.downcase()
+      |> String.replace(~r/[\x{2018}\x{2019}]/u, "'")
+      |> String.split(~r/[^\p{L}']+/u, trim: true)
+      |> Enum.drop_while(&(&1 in @fillers))
+
+    case words do
+      [w | _] when w in @wh_words -> true
+      [aux, subj | _] when aux in @auxiliaries -> subj in @subjects
       _ -> false
     end
   end

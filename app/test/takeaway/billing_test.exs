@@ -42,4 +42,11 @@ defmodule Takeaway.BillingTest do
       refute Billing.feature_allowed?(nil, :summaries)
     end
   end
+
+  test "nil features or limits is a changeset error, not a crash" do
+    assert {:error, cs} = Billing.create_plan(%{key: "x", name: "X", features: nil})
+    assert "can't be blank" in errors_on(cs).features
+    assert {:error, cs} = Billing.create_plan(%{key: "y", name: "Y", limits: nil})
+    assert "can't be blank" in errors_on(cs).limits
+  end
 end
