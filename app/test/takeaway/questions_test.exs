@@ -47,6 +47,30 @@ defmodule Takeaway.QuestionsTest do
     assert {:ok, %{text: "OK"}} = Questions.submit_question(s, u, %{"text" => "ok"})
   end
 
+  test "question?/1 heuristic and filter reuse" do
+    assert Questions.question?("Is this live?")
+    assert Questions.question?("how does it scale")
+    assert Questions.question?("Can you repeat that")
+    refute Questions.question?("Thanks everyone")
+    refute Questions.question?("Whatever, moving on")
+    refute Questions.question?("  ")
+    refute Questions.question?(nil)
+
+    Application.put_env(:takeaway, :question_filter, fn _ -> {:error, :rejected} end)
+    refute Questions.question?("Is this live?")
+  end
+
+  test "list_question_segments returns only question segments", %{speech: s} do
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Welcome all", start_ms: 0, end_ms: 500},
+        %{text: "Does it scale?", start_ms: 500, end_ms: 900}
+      ])
+
+    assert ["Does it scale?"] =
+             Enum.map(Takeaway.Transcripts.list_question_segments(s.id), & &1.text)
+  end
+
   test "owner retracts, broadcasts, disappears from list", %{speech: s, user: u, other: o} do
     {:ok, q} = Questions.submit_question(s, u, %{"text" => "Q"})
     assert_receive {:question_created, _}
