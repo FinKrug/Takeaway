@@ -22,6 +22,7 @@ defmodule TakeawayWeb.Router do
     get "/", PageController, :home
     get "/artifacts/:id", ArtifactController, :show
 
+    live "/events/:id/tickets", TicketsLive
     live "/speeches/new", SpeechLive.New
     live "/speeches/:code", SpeechLive.Show
     live "/join/:code", SpeechLive.Join
