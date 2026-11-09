@@ -31,6 +31,7 @@ defmodule TakeawayWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/join", PageController, :join
     get "/artifacts/:id", ArtifactController, :show
 
     live "/join/:code", SpeechLive.Join

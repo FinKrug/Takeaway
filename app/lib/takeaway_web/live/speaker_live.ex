@@ -64,25 +64,46 @@ defmodule TakeawayWeb.SpeakerLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.flash_group flash={@flash} />
-    <main class="mx-auto max-w-2xl p-4 space-y-4">
-      <h1 class="text-2xl font-bold">{@speech.title}</h1>
-      <div id="mic" phx-hook=".MicStream" class="flex items-center gap-3">
-        <button id="mic-toggle" type="button" class="btn btn-primary">
-          {if @recording, do: "Stop microphone", else: "Start microphone"}
-        </button>
-        <span :if={@recording} class="badge badge-error">Live</span>
-      </div>
-      <section>
-        <h2 class="text-lg font-semibold">Live transcript</h2>
-        <ol id="transcript" phx-update="stream" class="space-y-1">
-          <li :for={{dom_id, seg} <- @streams.segments} id={dom_id}>
-            <span class="font-mono text-xs opacity-60">{format_ms(seg.start_ms)}</span>
-            {seg.text}
+    <Layouts.app flash={@flash}>
+      <.header>{@speech.title}</.header>
+
+      <.card tone={if @recording, do: "brand", else: "default"}>
+        <div id="mic" phx-hook=".MicStream" class="flex flex-wrap items-center gap-3">
+          <.button
+            id="mic-toggle"
+            type="button"
+            variant={if @recording, do: "danger", else: "primary"}
+            size="lg"
+            class="flex-1 sm:flex-none"
+          >
+            <.icon
+              name={if @recording, do: "hero-stop-solid", else: "hero-microphone-solid"}
+              class="size-5"
+            />
+            {if @recording, do: "Stop microphone", else: "Start microphone"}
+          </.button>
+          <.badge :if={@recording} tone="danger"><.live_dot /> Live</.badge>
+        </div>
+      </.card>
+
+      <.card title="Live transcript">
+        <ol id="transcript" phx-update="stream" class="space-y-3">
+          <li class="hidden only:block text-sm text-muted" id="transcript-empty">
+            The transcript appears here a few seconds after you start the microphone.
+          </li>
+          <li
+            :for={{dom_id, seg} <- @streams.segments}
+            id={dom_id}
+            class="flex gap-3 leading-relaxed motion-safe:animate-enter"
+          >
+            <span class="mt-0.5 shrink-0 font-mono text-xs tabular-nums text-muted">
+              {format_ms(seg.start_ms)}
+            </span>
+            <span class="text-pretty">{seg.text}</span>
           </li>
         </ol>
-      </section>
-    </main>
+      </.card>
+    </Layouts.app>
 
     <script :type={Phoenix.LiveView.ColocatedHook} name=".MicStream">
       export default {
