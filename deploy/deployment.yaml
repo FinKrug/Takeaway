@@ -8,6 +8,14 @@ spec:
   # Remove this line when you turn on the HPA, or Argo CD and
   # the autoscaler will keep resetting each other.
   replicas: 2
+  # Replace pods one at a time, without an extra surge pod: CPU limits are at
+  # 3.8 of the team's 4 CPU, and a surge pod (+500m) would exceed the quota,
+  # stay Pending and stall the rollout.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: app
@@ -104,6 +112,10 @@ spec:
               value: http://whisper:8000/v1/audio/transcriptions
             - name: STT_MODEL
               value: Systran/faster-whisper-small
+            # In-cluster speaker labels (deploy/diarizer.yaml). Unset it to turn
+            # speaker labels off; the transcript works either way.
+            - name: DIARIZER_URL
+              value: http://diarizer:8000/v1/diarize
           resources:
             requests:
               cpu: 100m

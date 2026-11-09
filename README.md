@@ -16,6 +16,7 @@ Built for the [Cloud Native Hackathon](https://www.wemakedevs.org/hackathons/cnh
 
 - **Stack:** Elixir / Phoenix LiveView, Postgres (CloudNativePG), PubSub for live updates.
 - **Speech-to-text** (`Takeaway.STT`): audio chunks go to any OpenAI-compatible `/audio/transcriptions` endpoint; segments are stored with timestamps on the speech's transcript. Without `STT_URL` no segments are produced.
+- **Speaker labels** (`Takeaway.Diarizer`, `diarizer/`): each chunk also goes to the in-cluster diarizer (sherpa-onnx: pyannote segmentation + WeSpeaker embeddings, CPU, models baked into the image), in parallel with STT. It keeps a voiceprint per speaker for each speech, so "Speaker 1" stays the same voice across the talk; the transcript shows a badge where the speaker changes. Without `DIARIZER_URL`, or if the diarizer fails, the transcript still works without labels. Voiceprints live in the diarizer's memory (one replica): a restart starts the numbering again.
 - **Summaries** (`Takeaway.Summaries`, `Takeaway.LLM`): generated once when the speaker presses **End Speech** and cached in `summaries`. With `ANTHROPIC_API_KEY` Claude writes them; otherwise (or if the call fails) an extractive fallback is stored.
 
 Main code lives in `app/lib/takeaway/` (contexts: `speeches`, `questions`, `notes`, `transcripts`, `summaries`, `accounts`, `events`) and `app/lib/takeaway_web/live/` (LiveViews).
@@ -28,6 +29,7 @@ Main code lives in `app/lib/takeaway/` (contexts: `speeches`, `questions`, `note
 | `SECRET_KEY_BASE` | Phoenix cookie signing (Secret `app-credentials`). |
 | `PHX_HOST`, `PORT` | Public host and listen port (8080 in the image). |
 | `STT_URL`, `STT_API_KEY`, `STT_MODEL` | Speech-to-text endpoint (default model `whisper-1`). In the cluster these point at Service `whisper` (`Systran/faster-whisper-small`). |
+| `DIARIZER_URL` | Speaker labels: the diarizer's `/v1/diarize` (Service `diarizer` in the cluster). Tune it with `MATCH_THRESHOLD` on the diarizer (default 0.7: raise it if two people share a label, lower it if one person gets several). `STT_DIARIZE=true` instead asks the STT provider for labels, if it supports them (Speaches and `whisper-1` don't). |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Claude for summaries (optional). |
 | `POOL_SIZE` | Ecto pool size. |
 | `ELASTICSEARCH_URL`, `ELASTICSEARCH_API_KEY` | Derived search index; local default `http://localhost:9200`, in-cluster Service `elasticsearch:9200`. API key optional for a secured external endpoint. |

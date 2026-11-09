@@ -11,7 +11,12 @@ resources:
   - db.yaml
   - whisper.yaml
   - elasticsearch.yaml
+  - diarizer.yaml
 images:
   - name: app
     newName: ghcr.io/finkrug/takeaway
     newTag: "28c3d03"
+  # "pending" until the Action's first diarizer build replaces it.
+  - name: diarizer
+    newName: ghcr.io/finkrug/takeaway
+    newTag: "pending"
