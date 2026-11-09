@@ -8,6 +8,7 @@
 import Config
 
 config :takeaway,
+  env: config_env(),
   ecto_repos: [Takeaway.Repo],
   generators: [timestamp_type: :utc_datetime]
 

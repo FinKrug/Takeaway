@@ -170,25 +170,41 @@ defmodule Takeaway.Elasticsearch do
   end
 
   @doc """
+  Returns the mapping definition for a known index name.
+  """
+  def mapping_for(index_name) do
+    case List.keyfind(@indices, to_string(index_name), 0) do
+      {_, schema} -> schema
+      nil -> nil
+    end
+  end
+
+  @doc """
   Indexes a document into the specified index.
   Opts:
     - `:refresh` - boolean (default false). When true, forces immediate index refresh.
   """
   def index_document(index_name, id, document, opts \\ []) do
-    params = if Keyword.get(opts, :refresh, false), do: [refresh: "true"], else: []
+    id_str = if id, do: to_string(id), else: ""
 
-    req = client()
-    url = "/#{index_name}/_doc/#{id}"
+    if id_str == "" do
+      {:error, :missing_id}
+    else
+      params = if Keyword.get(opts, :refresh, false), do: [refresh: "true"], else: []
 
-    case Req.put(req, url: url, params: params, json: document) do
-      {:ok, %{status: status, body: resp}} when status in [200, 201] ->
-        {:ok, resp}
+      req = client()
+      url = "/#{index_name}/_doc/#{id_str}"
 
-      {:ok, %{status: status, body: resp}} ->
-        {:error, {:status, status, resp}}
+      case Req.put(req, url: url, params: params, json: document) do
+        {:ok, %{status: status, body: resp}} when status in [200, 201] ->
+          {:ok, resp}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:ok, %{status: status, body: resp}} ->
+          {:error, {:status, status, resp}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
@@ -196,18 +212,24 @@ defmodule Takeaway.Elasticsearch do
   Fetches a document by id.
   """
   def get_document(index_name, id) do
-    case Req.get(client(), url: "/#{index_name}/_doc/#{id}") do
-      {:ok, %{status: 200, body: %{"_source" => source}}} ->
-        {:ok, source}
+    id_str = if id, do: to_string(id), else: ""
 
-      {:ok, %{status: 404}} ->
-        {:error, :not_found}
+    if id_str == "" do
+      {:error, :missing_id}
+    else
+      case Req.get(client(), url: "/#{index_name}/_doc/#{id_str}") do
+        {:ok, %{status: 200, body: %{"_source" => source}}} ->
+          {:ok, source}
 
-      {:ok, %{status: status, body: resp}} ->
-        {:error, {:status, status, resp}}
+        {:ok, %{status: 404}} ->
+          {:error, :not_found}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:ok, %{status: status, body: resp}} ->
+          {:error, {:status, status, resp}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
@@ -215,20 +237,26 @@ defmodule Takeaway.Elasticsearch do
   Deletes a document by id.
   """
   def delete_document(index_name, id, opts \\ []) do
-    params = if Keyword.get(opts, :refresh, false), do: [refresh: "true"], else: []
+    id_str = if id, do: to_string(id), else: ""
 
-    case Req.delete(client(), url: "/#{index_name}/_doc/#{id}", params: params) do
-      {:ok, %{status: 200, body: resp}} ->
-        {:ok, resp}
+    if id_str == "" do
+      {:error, :missing_id}
+    else
+      params = if Keyword.get(opts, :refresh, false), do: [refresh: "true"], else: []
 
-      {:ok, %{status: 404}} ->
-        {:ok, :not_found}
+      case Req.delete(client(), url: "/#{index_name}/_doc/#{id_str}", params: params) do
+        {:ok, %{status: 200, body: resp}} ->
+          {:ok, resp}
 
-      {:ok, %{status: status, body: resp}} ->
-        {:error, {:status, status, resp}}
+        {:ok, %{status: 404}} ->
+          {:ok, :not_found}
 
-      {:error, reason} ->
-        {:error, reason}
+        {:ok, %{status: status, body: resp}} ->
+          {:error, {:status, status, resp}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
@@ -258,22 +286,34 @@ defmodule Takeaway.Elasticsearch do
   """
   def index_question(question, opts \\ []) do
     doc = normalize_question(question)
-    id = to_string(doc[:id] || doc["id"])
+    id = doc[:id] || doc["id"]
 
-    index_document(@questions_index, id, doc, opts)
+    if is_nil(id) or id == "" do
+      {:error, :missing_id}
+    else
+      index = Keyword.get(opts, :index, @questions_index)
+      index_document(index, to_string(id), doc, opts)
+    end
   end
 
   @doc """
   Removes a question from the index.
   """
   def delete_question(question_id, opts \\ []) do
-    delete_document(@questions_index, to_string(question_id), opts)
+    if is_nil(question_id) or question_id == "" do
+      {:error, :missing_id}
+    else
+      index = Keyword.get(opts, :index, @questions_index)
+      delete_document(index, to_string(question_id), opts)
+    end
   end
 
   @doc """
   Searches questions for a given speech.
   """
-  def search_questions(speech_id, query_text) do
+  def search_questions(speech_id, query_text, opts \\ []) do
+    index = Keyword.get(opts, :index, @questions_index)
+
     query = %{
       query: %{
         bool: %{
@@ -287,7 +327,7 @@ defmodule Takeaway.Elasticsearch do
       }
     }
 
-    search(@questions_index, query)
+    search(index, query)
   end
 
   @doc """
@@ -330,9 +370,14 @@ defmodule Takeaway.Elasticsearch do
   """
   def index_transcript_segment(segment, opts \\ []) do
     doc = normalize_map(segment)
-    id = to_string(doc[:segment_id] || doc["segment_id"] || doc[:id] || doc["id"])
+    id = doc[:segment_id] || doc["segment_id"] || doc[:id] || doc["id"]
 
-    index_document(@transcripts_index, id, doc, opts)
+    if is_nil(id) or id == "" do
+      {:error, :missing_id}
+    else
+      index = Keyword.get(opts, :index, @transcripts_index)
+      index_document(index, to_string(id), doc, opts)
+    end
   end
 
   @doc """
@@ -340,11 +385,21 @@ defmodule Takeaway.Elasticsearch do
   """
   def index_slide(slide, opts \\ []) do
     doc = normalize_map(slide)
-    speech_id = to_string(doc[:speech_id] || doc["speech_id"])
-    slide_num = to_string(doc[:slide_number] || doc["slide_number"])
-    id = "#{speech_id}_#{slide_num}"
+    speech_id = doc[:speech_id] || doc["speech_id"]
+    slide_num = doc[:slide_number] || doc["slide_number"]
 
-    index_document(@slides_index, id, doc, opts)
+    cond do
+      is_nil(speech_id) or speech_id == "" ->
+        {:error, :missing_speech_id}
+
+      is_nil(slide_num) or slide_num == "" ->
+        {:error, :missing_slide_number}
+
+      true ->
+        index = Keyword.get(opts, :index, @slides_index)
+        id = "#{speech_id}_#{slide_num}"
+        index_document(index, id, doc, opts)
+    end
   end
 
   @doc """
@@ -378,22 +433,34 @@ defmodule Takeaway.Elasticsearch do
   """
   def index_note(note, opts \\ []) do
     doc = normalize_note(note)
-    id = to_string(doc[:id] || doc["id"])
+    id = doc[:id] || doc["id"]
 
-    index_document(@notes_index, id, doc, opts)
+    if is_nil(id) or id == "" do
+      {:error, :missing_id}
+    else
+      index = Keyword.get(opts, :index, @notes_index)
+      index_document(index, to_string(id), doc, opts)
+    end
   end
 
   @doc """
   Removes a note from the index.
   """
   def delete_note(note_id, opts \\ []) do
-    delete_document(@notes_index, to_string(note_id), opts)
+    if is_nil(note_id) or note_id == "" do
+      {:error, :missing_id}
+    else
+      index = Keyword.get(opts, :index, @notes_index)
+      delete_document(index, to_string(note_id), opts)
+    end
   end
 
   @doc """
   Searches notes for a specific user within a speech.
   """
-  def search_notes(speech_id, user_id, query_text) do
+  def search_notes(speech_id, user_id, query_text, opts \\ []) do
+    index = Keyword.get(opts, :index, @notes_index)
+
     query = %{
       query: %{
         bool: %{
@@ -408,13 +475,15 @@ defmodule Takeaway.Elasticsearch do
       }
     }
 
-    search(@notes_index, query)
+    search(index, query)
   end
 
   @doc """
   Searches all notes within a speech (e.g. for aggregations or post-speech summary).
   """
-  def search_speech_notes(speech_id, query_text) do
+  def search_speech_notes(speech_id, query_text, opts \\ []) do
+    index = Keyword.get(opts, :index, @notes_index)
+
     query = %{
       query: %{
         bool: %{
@@ -428,7 +497,7 @@ defmodule Takeaway.Elasticsearch do
       }
     }
 
-    search(@notes_index, query)
+    search(index, query)
   end
 
   # =========================================================================

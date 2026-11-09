@@ -15,12 +15,22 @@ defmodule Takeaway.Elasticsearch.ClusterSetup do
 
   @impl true
   def init(_opts) do
-    # Run async so startup is never blocked
-    send(self(), :setup_indices)
-    {:ok, %{retries: 0}}
+    es_config = Application.get_env(:takeaway, :elasticsearch, [])
+    auto_setup = Keyword.get(es_config, :auto_setup, Application.get_env(:takeaway, :env) != :test)
+
+    if auto_setup do
+      # Run async so startup is never blocked
+      send(self(), :setup_indices)
+    end
+
+    {:ok, %{retries: 0, auto_setup: auto_setup}}
   end
 
   @impl true
+  def handle_info(:setup_indices, %{auto_setup: false} = state) do
+    {:noreply, state}
+  end
+
   def handle_info(:setup_indices, %{retries: retries} = state) do
     case Elasticsearch.init_indices() do
       :ok ->
