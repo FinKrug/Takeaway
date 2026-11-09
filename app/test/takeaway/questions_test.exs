@@ -169,4 +169,46 @@ defmodule Takeaway.QuestionsTest do
 
     assert {:ok, []} = Questions.create_verbal_questions(s.id)
   end
+
+  test "a non-question segment after a verbal question marks it answered", %{speech: s} do
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Does it scale?", start_ms: 0, end_ms: 500}
+      ])
+
+    assert [%{answered_at: nil}] = Questions.list_questions(s.id)
+    assert_receive {:question_created, _}
+
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Yes, it scales horizontally", start_ms: 600, end_ms: 1200}
+      ])
+
+    assert [%{answered_at: at}] = Questions.list_questions(s.id)
+    assert at
+    assert_receive {:question_answered, %{answered_at: ^at}}
+
+    assert {:ok, []} = Questions.mark_answered_by_segments(s.id)
+  end
+
+  test "another question or the same speaker is not a response", %{speech: s} do
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Intro talk", start_ms: 0, end_ms: 100},
+        %{text: "Does it scale?", start_ms: 200, end_ms: 500, speaker: "B"},
+        %{text: "And is it fast?", start_ms: 600, end_ms: 800, speaker: "A"}
+      ])
+
+    assert Enum.all?(Questions.list_questions(s.id), &is_nil(&1.answered_at))
+    refute_receive {:question_answered, _}
+
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Good questions, both", start_ms: 1100, end_ms: 1300, speaker: "A"}
+      ])
+
+    # speaker A answers B's question, but is not a response to their own
+    assert [%{answered_at: a}, %{answered_at: nil}] = Questions.list_questions(s.id)
+    assert a
+  end
 end

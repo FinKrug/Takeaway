@@ -50,7 +50,9 @@ defmodule Takeaway.Transcripts do
   @doc """
   Persist segments (offsets relative to a chunk), broadcast and index them.
   When a new segment looks like a question, it also becomes a `source: "verbal"`
-  question (`Takeaway.Questions.create_verbal_questions/1`).
+  question (`Takeaway.Questions.create_verbal_questions/1`), and open verbal questions
+  followed by a non-question response are marked answered
+  (`Takeaway.Questions.mark_answered_by_segments/1`).
   """
   def record_segments(speech_id, segments, offset_ms \\ 0) do
     with {:ok, artifact} <- get_or_create_artifact(speech_id) do
@@ -63,6 +65,8 @@ defmodule Takeaway.Transcripts do
 
       if Enum.any?(saved, &Takeaway.Questions.question?(&1.text)),
         do: Takeaway.Questions.create_verbal_questions(speech_id)
+
+      if saved != [], do: Takeaway.Questions.mark_answered_by_segments(speech_id)
 
       {:ok, saved}
     end
