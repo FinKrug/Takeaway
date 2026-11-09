@@ -1,30 +1,33 @@
 defmodule TakeawayWeb.TicketsLive do
-  @moduledoc "Organizer page: generate tickets in bulk or import them from emails / CSV."
+  @moduledoc """
+  Organizer page: generate tickets in bulk or import them from emails / CSV.
+
+  Reachable only with the event's secret admin token:
+  `/events/:id/tickets?token=...` (see `Takeaway.Events.tickets_path/1`).
+  """
   use TakeawayWeb, :live_view
 
   alias Takeaway.{Events, Tickets}
 
   @impl true
-  def mount(%{"id" => id}, _session, socket) do
-    case Integer.parse(id) do
-      {int, ""} -> mount_event(Events.get_event(int), socket)
-      _ -> mount_event(nil, socket)
+  def mount(%{"id" => id} = params, _session, socket) do
+    case Events.get_event_for_admin(id, params["token"]) do
+      nil ->
+        {:ok, socket |> put_flash(:error, "Event not found") |> push_navigate(to: ~p"/")}
+
+      event ->
+        tickets = Tickets.list_tickets(event.id)
+
+        {:ok,
+         socket
+         |> assign(:page_title, "Tickets")
+         |> assign(:event, event)
+         |> assign(:result, nil)
+         |> assign(:ticket_count, length(tickets))
+         |> assign(:generate_form, to_form(%{"count" => "10"}, as: :generate))
+         |> assign(:import_form, to_form(%{"csv" => ""}, as: :import))
+         |> stream(:tickets, tickets)}
     end
-  end
-
-  defp mount_event(nil, socket) do
-    {:ok, socket |> put_flash(:error, "Event not found") |> push_navigate(to: ~p"/")}
-  end
-
-  defp mount_event(event, socket) do
-    {:ok,
-     socket
-     |> assign(:page_title, "Tickets")
-     |> assign(:event, event)
-     |> assign(:result, nil)
-     |> assign(:generate_form, to_form(%{"count" => "10"}, as: :generate))
-     |> assign(:import_form, to_form(%{"csv" => ""}, as: :import))
-     |> load_tickets()}
   end
 
   @impl true
@@ -32,7 +35,9 @@ defmodule TakeawayWeb.TicketsLive do
     with {n, ""} <- Integer.parse(count),
          {:ok, tickets} <- Tickets.generate_tickets(socket.assigns.event, n) do
       {:noreply,
-       socket |> assign(:result, "Generated #{length(tickets)} tickets") |> load_tickets()}
+       socket
+       |> assign(:result, "Generated #{length(tickets)} tickets")
+       |> add_tickets(tickets)}
     else
       _ -> {:noreply, put_flash(socket, :error, "Enter a number from 1 to 500")}
     end
@@ -45,11 +50,14 @@ defmodule TakeawayWeb.TicketsLive do
       "Imported #{length(r.created)}, skipped #{length(r.skipped)} existing, " <>
         "#{length(r.invalid)} invalid"
 
-    {:noreply, socket |> assign(:result, msg) |> load_tickets()}
+    {:noreply, socket |> assign(:result, msg) |> add_tickets(r.created)}
   end
 
-  defp load_tickets(socket),
-    do: assign(socket, :tickets, Tickets.list_tickets(socket.assigns.event.id))
+  defp add_tickets(socket, tickets) do
+    socket
+    |> update(:ticket_count, &(&1 + length(tickets)))
+    |> stream(:tickets, tickets)
+  end
 
   @impl true
   def render(assigns) do
@@ -80,9 +88,9 @@ defmodule TakeawayWeb.TicketsLive do
         </.form>
 
         <div>
-          <h2 class="font-semibold">{length(@tickets)} tickets</h2>
-          <ul id="tickets" class="font-mono text-sm">
-            <li :for={t <- @tickets}>{t.code}</li>
+          <h2 id="ticket-count" class="font-semibold">{@ticket_count} tickets</h2>
+          <ul id="tickets" phx-update="stream" class="font-mono text-sm">
+            <li :for={{dom_id, t} <- @streams.tickets} id={dom_id}>{t.code}</li>
           </ul>
         </div>
       </div>

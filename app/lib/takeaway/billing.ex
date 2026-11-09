@@ -14,6 +14,19 @@ defmodule Takeaway.Billing do
   def get_plan_by_key(key), do: Repo.get_by(Plan, key: key)
 
   @doc """
+  Puts `event` on `plan` (or back on the default plan with `nil`).
+  The only way to set `events.plan_id`: `Event.changeset/2` doesn't cast it,
+  so form or request params can't change an event's plan.
+  """
+  def set_event_plan(%Takeaway.Events.Event{} = event, plan)
+      when is_nil(plan) or is_struct(plan, Plan) do
+    event
+    |> Ecto.Changeset.change(plan_id: plan && plan.id)
+    |> Ecto.Changeset.foreign_key_constraint(:plan_id)
+    |> Repo.update()
+  end
+
+  @doc """
   The plan that applies to an event. An event without a plan (or a missing
   event) gets the default plan: the stored `"free"` plan if one exists,
   otherwise a built-in plan that allows every feature, so installs that never

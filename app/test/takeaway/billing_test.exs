@@ -70,10 +70,31 @@ defmodule Takeaway.BillingTest do
       {:ok, _} = Billing.create_plan(%{key: "free", name: "Free", features: []})
       {:ok, pro} = Billing.create_plan(%{key: "pro", name: "Pro", features: ["summaries"]})
 
-      {:ok, _} =
-        event |> Takeaway.Events.Event.changeset(%{plan_id: pro.id}) |> Takeaway.Repo.update()
+      {:ok, _} = Billing.set_event_plan(event, pro)
 
       assert Billing.speech_feature_allowed?(speech, :summaries)
+    end
+  end
+
+  describe "set_event_plan/2" do
+    setup do
+      {:ok, event} = Takeaway.Events.create_event(%{name: "Conf"})
+      {:ok, pro} = Billing.create_plan(%{key: "pro", name: "Pro", features: ["summaries"]})
+      %{event: event, pro: pro}
+    end
+
+    test "sets and clears the plan", %{event: event, pro: pro} do
+      assert {:ok, %{plan_id: id} = event} = Billing.set_event_plan(event, pro)
+      assert id == pro.id
+      assert {:ok, %{plan_id: nil}} = Billing.set_event_plan(event, nil)
+    end
+
+    test "event params can't set the plan", %{event: event, pro: pro} do
+      {:ok, created} = Takeaway.Events.create_event(%{name: "Sneaky", plan_id: pro.id})
+      assert created.plan_id == nil
+
+      {:ok, updated} = Takeaway.Events.update_event(event, %{"plan_id" => pro.id})
+      assert updated.plan_id == nil
     end
   end
 end

@@ -18,6 +18,21 @@ defmodule Takeaway.Release do
     {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))
   end
 
+  @doc """
+  Prints each event's organizer tickets link, for example:
+
+      bin/takeaway rpc "Takeaway.Release.print_tickets_links()"
+
+  The links contain secret admin tokens: don't paste them anywhere public.
+  """
+  def print_tickets_links do
+    for event <- Takeaway.Events.list_events() do
+      IO.puts("#{event.id}\t#{event.name}\t#{Takeaway.Events.tickets_path(event)}")
+    end
+
+    :ok
+  end
+
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
   end

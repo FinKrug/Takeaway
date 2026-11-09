@@ -184,8 +184,7 @@ defmodule Takeaway.SummariesTest do
 
       event = Takeaway.Repo.get!(Takeaway.Events.Event, speech.event_id)
 
-      {:ok, _} =
-        event |> Takeaway.Events.Event.changeset(%{plan_id: pro.id}) |> Takeaway.Repo.update()
+      {:ok, _} = Takeaway.Billing.set_event_plan(event, pro)
 
       assert {:ok, _} = Summaries.speaker_summary(speech)
     end

@@ -126,21 +126,47 @@ defmodule Takeaway.QuestionsTest do
     assert %{source: [_]} = errors_on(cs)
   end
 
-  test "create_verbal_questions makes verbal questions from question segments, idempotently",
-       %{speech: s} do
-    {:ok, _} =
+  test "recording a question segment creates a verbal question, idempotently", %{speech: s} do
+    {:ok, [_, seg]} =
       Takeaway.Transcripts.record_segments(s.id, [
         %{text: "Welcome all", start_ms: 0, end_ms: 500},
         %{text: "Does it scale?", start_ms: 500, end_ms: 900}
       ])
 
-    assert {:ok, [q]} = Questions.create_verbal_questions(s.id)
+    assert [q] = Questions.list_questions(s.id)
     assert {q.text, q.source, q.offset_ms, q.user_id} == {"Does it scale?", "verbal", 500, nil}
-    assert q.transcript_segment_id
+    assert q.transcript_segment_id == seg.id
     assert_receive {:question_created, %{id: id}}
     assert id == q.id
 
     assert {:ok, []} = Questions.create_verbal_questions(s.id)
     assert [%{source: "verbal"}] = Questions.list_questions(s.id)
+  end
+
+  test "segments without a question create no questions", %{speech: s} do
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Welcome all", start_ms: 0, end_ms: 500}
+      ])
+
+    assert Questions.list_questions(s.id) == []
+    refute_receive {:question_created, _}
+  end
+
+  test "create_verbal_questions picks up segments saved another way", %{speech: s} do
+    {:ok, artifact} = Takeaway.Speeches.create_artifact(%{kind: "transcript", speech_id: s.id})
+
+    {:ok, _} =
+      Takeaway.Speeches.add_transcript_segment(%{
+        artifact_id: artifact.id,
+        text: "Is it open source?",
+        start_ms: 100,
+        end_ms: 400
+      })
+
+    assert {:ok, [%{source: "verbal", text: "Is it open source?"}]} =
+             Questions.create_verbal_questions(s.id)
+
+    assert {:ok, []} = Questions.create_verbal_questions(s.id)
   end
 end
