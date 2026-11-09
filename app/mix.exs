@@ -21,7 +21,7 @@ defmodule Takeaway.MixProject do
   def application do
     [
       mod: {Takeaway.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :inets, :ssl, :crypto]
     ]
   end
 
