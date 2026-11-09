@@ -18,7 +18,18 @@ defmodule TakeawayWeb.SpeechLive.Join do
   """
   use TakeawayWeb, :live_view
 
-  alias Takeaway.{Accounts, Notes, Questions, Slides, Speeches, SpeechCreator, Summaries, Tickets}
+  alias Takeaway.{
+    Accounts,
+    Notes,
+    Questions,
+    Slides,
+    Speeches,
+    SpeechCreator,
+    Summaries,
+    Tickets,
+    Transcripts
+  }
+
   alias Takeaway.Accounts.User
   alias Takeaway.Notes.Note
 
@@ -62,8 +73,10 @@ defmodule TakeawayWeb.SpeechLive.Join do
       current_slide: nil,
       question_ids: MapSet.new(),
       my_question_ids: MapSet.new(),
-      last_question_at: nil
+      last_question_at: nil,
+      last_speaker: nil
     )
+    |> stream(:segments, [])
     |> stream_configure(:questions, dom_id: &"question-#{&1.id}")
     |> stream(:questions, [])
   end
@@ -75,6 +88,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
     if connected?(socket) do
       SpeechCreator.subscribe(speech.id)
       Questions.subscribe(speech.id)
+      Transcripts.subscribe(speech.id)
     end
 
     user = session_attendee(session)
@@ -104,8 +118,17 @@ defmodule TakeawayWeb.SpeechLive.Join do
          questions |> Enum.filter(&(user_id && &1.user_id == user_id)) |> MapSet.new(& &1.id)
      )
      |> stream(:questions, Enum.map(questions, &item(&1, false)), reset: true)
+     |> load_captions(speech)
      |> load_summary()}
   end
+
+  # Live captions (WCAG 1.2.4): the speaker's live transcript, shown only while the talk runs.
+  defp load_captions(socket, %{started_at: %DateTime{}, ended_at: nil} = speech) do
+    {segments, last} = TakeawayWeb.SpeakerLive.mark_turns(Transcripts.list_segments(speech.id))
+    socket |> assign(:last_speaker, last) |> stream(:segments, segments, reset: true)
+  end
+
+  defp load_captions(socket, _speech), do: socket
 
   defp session_attendee(%{"user_id" => id}) when is_integer(id) do
     case Accounts.get_user(id) do
@@ -348,6 +371,9 @@ defmodule TakeawayWeb.SpeechLive.Join do
     {:noreply, assign(socket, slide_count: count, current_slide: n)}
   end
 
+  def handle_info({:transcript_segment, seg}, socket),
+    do: {:noreply, TakeawayWeb.SpeakerLive.insert_segment(socket, seg)}
+
   # Anything else on the speech topics (future events) is ignored, never a crash.
   def handle_info(_message, socket), do: {:noreply, socket}
 
@@ -361,6 +387,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
     |> JS.add_class("hidden", to: "#panel-#{other}")
     |> JS.set_attribute({"aria-selected", "true"}, to: "#tab-#{tab}")
     |> JS.set_attribute({"aria-selected", "false"}, to: "#tab-#{other}")
+    |> JS.set_attribute({"tabindex", "0"}, to: "#tab-#{tab}")
+    |> JS.set_attribute({"tabindex", "-1"}, to: "#tab-#{other}")
   end
 
   attr :id, :string, required: true
@@ -376,6 +404,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
       id={@id}
       role="tab"
       aria-selected={to_string(@selected)}
+      tabindex={if @selected, do: "0", else: "-1"}
       aria-controls={@controls}
       class={[
         "inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-muted",
@@ -477,6 +506,18 @@ defmodule TakeawayWeb.SpeechLive.Join do
           </.card>
         </div>
 
+        <.card
+          :if={@speech.started_at && is_nil(@speech.ended_at)}
+          id="live-captions"
+          title="Live captions"
+        >
+          <div id="live-captions-log" role="log" aria-live="off" aria-label="Live captions">
+            <TakeawayWeb.SpeakerLive.transcript_list id="captions" segments={@streams.segments}>
+              <:empty>Captions appear here a few seconds after the speaker starts talking.</:empty>
+            </TakeawayWeb.SpeakerLive.transcript_list>
+          </div>
+        </.card>
+
         <.card :if={@speech.ended_at && @user_id} id="attendee-summary" title="Your cliffnotes">
           <p
             :if={@summary_locked}
@@ -523,6 +564,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
 
         <div id="attendee-workspace" class="space-y-4 md:space-y-0">
           <div
+            id="attendee-tablist"
+            phx-hook="TabList"
             role="tablist"
             aria-label="Notes and questions"
             class="grid grid-cols-2 gap-1 rounded-2xl bg-sunken p-1 md:hidden"

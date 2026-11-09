@@ -1,0 +1,74 @@
+# Accessibility check: boots the app against Postgres and runs axe-core
+# (via Playwright) on the main pages. Violations fail the build.
+name: a11y
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "a11y/**"
+      - ".github/workflows/a11y.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  axe:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.20.4"
+          otp-version: "29.1.1"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build and migrate the app
+        working-directory: app
+        run: |
+          mix deps.get
+          mix assets.setup
+          mix setup
+
+      - name: Start the app
+        working-directory: app
+        run: |
+          nohup mix phx.server > ../server.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:4000/healthz && exit 0
+            sleep 2
+          done
+          cat ../server.log
+          exit 1
+
+      - name: Install axe and Playwright
+        working-directory: a11y
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Run axe
+        working-directory: a11y
+        run: npm test
+
+      - name: Server log on failure
+        if: failure()
+        run: cat server.log
