@@ -26,8 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          # The parent commit, to see whether diarizer/ changed.
-          fetch-depth: 2
+          # Full history, to diff the whole pushed range for diarizer/ changes.
+          fetch-depth: 0
 
       - name: Image name and tag
         id: meta
@@ -39,14 +39,18 @@ jobs:
       # pushed to the same GHCR package as tag diarizer-<sha>, so it is public
       # like the app image. Rebuild it only when diarizer/ changed, on a manual
       # run, or while the manifests still point at the "pending" placeholder.
+      # The whole push is compared (github.event.before..HEAD), not just the
+      # last commit; if that commit is unknown (new branch, force push), build.
       - name: Does the diarizer need a build?
         id: diarizer
         env:
           EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
         run: |
           current=$(yq '.images[] | select(.name == "diarizer") | .newTag' deploy/kustomization.yaml)
           if [ "$EVENT" = workflow_dispatch ] || [ "$current" = pending ] \
-             || ! git diff --quiet HEAD^ HEAD -- diarizer/; then
+             || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null \
+             || ! git diff --quiet "$BEFORE" HEAD -- diarizer/; then
             echo "build=true" >> "$GITHUB_OUTPUT"
           fi
 
