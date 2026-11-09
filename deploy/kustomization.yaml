@@ -15,7 +15,7 @@ resources:
 images:
   - name: app
     newName: ghcr.io/finkrug/takeaway
-    newTag: "4f18ebe"
+    newTag: "3b500c3"
   # "pending" until the Action's first diarizer build replaces it.
   - name: diarizer
     newName: ghcr.io/finkrug/takeaway
