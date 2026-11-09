@@ -35,6 +35,7 @@ defmodule TakeawayWeb.SpeakerLive do
         # only questions that arrive live get the enter animation.
         {:ok,
          socket
+         |> assign(:page_title, speech.title)
          |> assign(
            speech: speech,
            recording: false,

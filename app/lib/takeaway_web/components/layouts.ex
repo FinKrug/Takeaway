@@ -40,6 +40,13 @@ defmodule TakeawayWeb.Layouts do
   def app(assigns) do
     ~H"""
     <div class="flex min-h-dvh flex-col">
+      <a
+        href="#main"
+        id="skip-link"
+        class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-brand focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-on-brand focus:shadow-lg"
+      >
+        Skip to content
+      </a>
       <header class="sticky top-0 z-40 border-b border-line/70 bg-canvas/80 pt-[env(safe-area-inset-top)] backdrop-blur-md supports-[backdrop-filter]:bg-canvas/70">
         <nav
           class={[
@@ -77,6 +84,7 @@ defmodule TakeawayWeb.Layouts do
 
       <main
         id="main"
+        tabindex="-1"
         class={[
           "mx-auto w-full flex-1 px-4 pb-16 pt-6 sm:px-6 sm:pt-10 motion-safe:animate-enter",
           if(@wide, do: "max-w-5xl", else: "max-w-2xl")
