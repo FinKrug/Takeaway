@@ -17,3 +17,18 @@ defmodule Takeaway.FakeIndexer do
     :ok
   end
 end
+
+defmodule Takeaway.FakeLLM do
+  @behaviour Takeaway.LLM
+  @impl true
+  def complete(system, prompt, _opts) do
+    send(Application.fetch_env!(:takeaway, :llm_test_pid), {:llm_called, system, prompt})
+    {:ok, "AI: " <> String.slice(prompt, 0, 20)}
+  end
+end
+
+defmodule Takeaway.FailingLLM do
+  @behaviour Takeaway.LLM
+  @impl true
+  def complete(_, _, _), do: {:error, :down}
+end

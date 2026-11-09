@@ -107,4 +107,17 @@ defmodule Takeaway.SpeechCreator do
       {:ok, started}
     end
   end
+
+  @doc """
+  Ends the speech (sets ended_at) and broadcasts `{:speech_ended, speech}`.
+  Idempotent: an already-ended speech is returned unchanged and not re-announced.
+  """
+  def end_speech(%{ended_at: %DateTime{}} = speech), do: {:ok, speech}
+
+  def end_speech(speech) do
+    with {:ok, ended} <- Speeches.end_speech(speech) do
+      Phoenix.PubSub.broadcast(Takeaway.PubSub, topic(speech.id), {:speech_ended, ended})
+      {:ok, ended}
+    end
+  end
 end
