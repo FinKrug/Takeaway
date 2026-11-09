@@ -59,4 +59,27 @@ defmodule Takeaway.TranscriptsTest do
     assert {:ok, [%{text: "yo"}]} = Takeaway.STT.Whisper.parse(~s({"text":"yo"}))
     assert {:error, :bad_response} = Takeaway.STT.Whisper.parse("nope")
   end
+
+  test "Whisper.parse keeps a diarized speaker label and omits blank ones" do
+    json =
+      ~s({"segments":[{"text":"hi","start":0,"end":1,"speaker":"SPEAKER_00"},{"text":"yo","start":1,"end":2,"speaker":""},{"text":"ok","start":2,"end":3}]})
+
+    assert {:ok, [a, b, c]} = Takeaway.STT.Whisper.parse(json)
+    assert a.speaker == "SPEAKER_00"
+    refute Map.has_key?(b, :speaker)
+    refute Map.has_key?(c, :speaker)
+  end
+
+  test "record_segments stores the speaker label, nil when absent", %{speech: speech} do
+    segs = [
+      %{text: "hi", start_ms: 0, end_ms: 100, speaker: "SPEAKER_01"},
+      %{text: "there", start_ms: 100, end_ms: 200}
+    ]
+
+    assert {:ok, [a, b]} = Transcripts.record_segments(speech.id, segs)
+    assert a.speaker == "SPEAKER_01"
+    assert b.speaker == nil
+
+    assert ["SPEAKER_01", nil] = Enum.map(Transcripts.list_segments(speech.id), & &1.speaker)
+  end
 end
