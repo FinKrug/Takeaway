@@ -31,12 +31,14 @@ defmodule Takeaway.Questions do
       %{
         id: id,
         text: first.text,
+        first_question_id: first.id,
         count: length(questions),
         questions: Enum.map(questions, & &1.text)
       }
     end)
-    |> Enum.sort_by(&{-&1.count, &1.text, &1.id})
+    |> Enum.sort_by(&{-&1.count, &1.first_question_id})
     |> Enum.take(Keyword.get(opts, :limit, 10))
+    |> Enum.map(&Map.delete(&1, :first_question_id))
   end
 
   @doc "PubSub topic for a speech's question events."
