@@ -1,0 +1,17 @@
+# The app on NodePort 30080. k3d publishes it on the server's 127.0.0.1:8180
+# only; reach it with an SSH tunnel (or, later, the host's nginx).
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-nodeport
+  labels:
+    app: app
+spec:
+  type: NodePort
+  selector:
+    app: app
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      nodePort: 30080
