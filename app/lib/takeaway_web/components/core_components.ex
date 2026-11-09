@@ -43,7 +43,7 @@ defmodule TakeawayWeb.CoreComponents do
         />
         <path d="M13 13.25h6M13 16h4" class="stroke-brand" stroke-width="1.8" stroke-linecap="round" />
       </svg>
-      
+
       <span
         :if={@wordmark}
         class="font-display text-[1.05em] font-semibold tracking-tight text-ink"
@@ -110,10 +110,10 @@ defmodule TakeawayWeb.CoreComponents do
         />
         <div class="min-w-0 flex-1">
           <p :if={@title} class="font-semibold">{@title}</p>
-          
+
           <p class="text-pretty">{msg}</p>
         </div>
-        
+
         <button
           type="button"
           class="-m-1 rounded-lg p-1 text-muted transition-colors hover:bg-sunken hover:text-ink"
@@ -239,7 +239,7 @@ defmodule TakeawayWeb.CoreComponents do
     >
       <div :if={@title || @actions != []} class="mb-3 flex items-center justify-between gap-3">
         <h2 :if={@title} class="font-display text-base font-semibold tracking-tight">{@title}</h2>
-        
+
         <div :if={@actions != []} class="flex shrink-0 items-center gap-2">
           {render_slot(@actions)}
         </div>
@@ -269,12 +269,12 @@ defmodule TakeawayWeb.CoreComponents do
         <h1 class="font-display text-2xl font-semibold tracking-tight text-balance sm:text-[1.75rem] sm:leading-tight">
           {render_slot(@inner_block)}
         </h1>
-        
+
         <p :if={@subtitle != []} class="mt-1.5 text-pretty text-muted">
           {render_slot(@subtitle)}
         </p>
       </div>
-      
+
       <div :if={@actions != []} class="flex shrink-0 flex-wrap gap-2">{render_slot(@actions)}</div>
     </header>
     """
@@ -308,13 +308,13 @@ defmodule TakeawayWeb.CoreComponents do
       <span class="mb-3 grid size-11 place-items-center rounded-full bg-brand-soft text-brand">
         <.icon name={@icon} class="size-5" />
       </span>
-      
+
       <h2 class="font-display font-semibold tracking-tight">{@title}</h2>
-      
+
       <p :if={@inner_block != []} class="mt-1 max-w-sm text-pretty text-sm text-muted">
         {render_slot(@inner_block)}
       </p>
-      
+
       <div :if={@actions != []} class="mt-5 flex flex-wrap justify-center gap-2">
         {render_slot(@actions)}
       </div>
@@ -499,9 +499,9 @@ defmodule TakeawayWeb.CoreComponents do
           {@rest}
         /> {@label}
       </label>
-      
+
       <.field_hint :if={@hint}>{@hint}</.field_hint>
-      
+
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -512,7 +512,7 @@ defmodule TakeawayWeb.CoreComponents do
     <div>
       <label for={@id} class="block">
         <.field_label :if={@label}>{@label}</.field_label>
-        
+
         <select
           id={@id}
           name={@name}
@@ -527,9 +527,9 @@ defmodule TakeawayWeb.CoreComponents do
            {Phoenix.HTML.Form.options_for_select(@options, @value)}
         </select>
       </label>
-      
+
       <.field_hint :if={@hint}>{@hint}</.field_hint>
-      
+
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -552,9 +552,9 @@ defmodule TakeawayWeb.CoreComponents do
           {@rest}
         >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
       </label>
-      
+
       <.field_hint :if={@hint}>{@hint}</.field_hint>
-      
+
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -566,7 +566,7 @@ defmodule TakeawayWeb.CoreComponents do
     <div>
       <label for={@id} class="block">
         <.field_label :if={@label}>{@label}</.field_label>
-        
+
         <input
           type={@type}
           name={@name}
@@ -579,9 +579,9 @@ defmodule TakeawayWeb.CoreComponents do
           {@rest}
         />
       </label>
-      
+
       <.field_hint :if={@hint}>{@hint}</.field_hint>
-      
+
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -674,13 +674,13 @@ defmodule TakeawayWeb.CoreComponents do
         <thead class="text-xs uppercase tracking-wide text-muted">
           <tr>
             <th :for={col <- @col} class="px-3 py-2 font-semibold">{col[:label]}</th>
-            
+
             <th :if={@action != []} class="px-3 py-2">
               <span class="sr-only">{gettext("Actions")}</span>
             </th>
           </tr>
         </thead>
-        
+
         <tbody
           id={@id}
           phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}
@@ -698,7 +698,7 @@ defmodule TakeawayWeb.CoreComponents do
             >
               {render_slot(col, @row_item.(row))}
             </td>
-            
+
             <td :if={@action != []} class="w-0 px-3 py-3 font-semibold">
               <div class="flex gap-4">
                 <%= for action <- @action do %>
@@ -732,7 +732,7 @@ defmodule TakeawayWeb.CoreComponents do
     <dl class="divide-y divide-line">
       <div :for={item <- @item} class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
         <dt class="text-sm font-semibold text-muted">{item.title}</dt>
-        
+
         <dd class="mt-1 sm:col-span-2 sm:mt-0">{render_slot(item)}</dd>
       </div>
     </dl>
