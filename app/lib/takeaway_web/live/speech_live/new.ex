@@ -45,7 +45,7 @@ defmodule TakeawayWeb.SpeechLive.New do
         "tags" => params["tags"]
       }
 
-      case SpeechCreator.create_speech(attrs, files) do
+      case SpeechCreator.create_speech(attrs, files, organizer: socket.assigns.current_organizer) do
         {:ok, speech} ->
           {:noreply, push_navigate(socket, to: ~p"/speeches/#{speech.join_code}")}
 

@@ -2,11 +2,12 @@ defmodule TakeawayWeb.TicketsLiveTest do
   use TakeawayWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
 
-  alias Takeaway.{Events, Tickets}
+  alias Takeaway.{Events, Organizers, Tickets}
 
-  setup do
-    {:ok, event} = Events.create_event(%{name: "Conf"})
-    %{event: event}
+  setup %{conn: conn} do
+    organizer = organizer_fixture()
+    {:ok, event} = Events.create_event(%{name: "Conf"}, organizer)
+    %{event: event, organizer: organizer, conn: log_in_organizer(conn, organizer)}
   end
 
   test "generates tickets", %{conn: conn, event: e} do
@@ -32,24 +33,39 @@ defmodule TakeawayWeb.TicketsLiveTest do
     assert html =~ t.code
   end
 
-  describe "without the admin token" do
-    test "missing token redirects and reveals nothing", %{conn: conn, event: e} do
-      {:ok, _} = Tickets.generate_tickets(e, 1)
+  test "the dashboard links the organizer to their tickets page", %{conn: conn, event: e} do
+    html = conn |> get(~p"/organizers") |> html_response(200)
+    assert html =~ "Conf"
+    assert html =~ ~s(href="/events/#{e.id}/tickets")
+  end
+
+  describe "access control" do
+    test "logged-out visitors go to the login page", %{event: e} do
+      conn = get(Phoenix.ConnTest.build_conn(), ~p"/events/#{e.id}/tickets")
+      assert redirected_to(conn) == ~p"/organizers/log_in"
+    end
+
+    test "the old admin-token link no longer works", %{event: e} do
+      conn =
+        get(Phoenix.ConnTest.build_conn(), ~p"/events/#{e.id}/tickets?token=#{e.admin_token}")
+
+      assert redirected_to(conn) == ~p"/organizers/log_in"
+    end
+
+    test "another organizer can't open the page", %{event: e} do
+      conn = log_in_organizer(Phoenix.ConnTest.build_conn(), organizer_fixture())
 
       assert {:error, {:live_redirect, %{to: "/", flash: %{"error" => "Event not found"}}}} =
                live(conn, ~p"/events/#{e.id}/tickets")
     end
 
-    test "wrong token redirects", %{conn: conn, event: e} do
-      assert {:error, {:live_redirect, %{to: "/"}}} =
-               live(conn, ~p"/events/#{e.id}/tickets?token=nope")
-    end
+    test "unowned events are closed to every organizer", %{conn: conn} do
+      {:ok, orphan} = Events.create_event(%{name: "Old"})
 
-    test "another event's token doesn't work", %{conn: conn, event: e} do
-      {:ok, other} = Events.create_event(%{name: "Other"})
+      assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, ~p"/events/#{orphan.id}/tickets")
 
-      assert {:error, {:live_redirect, %{to: "/"}}} =
-               live(conn, ~p"/events/#{e.id}/tickets?token=#{other.admin_token}")
+      {:ok, _} = Organizers.claim_event(orphan, organizer_fixture())
+      assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, ~p"/events/#{orphan.id}/tickets")
     end
   end
 end

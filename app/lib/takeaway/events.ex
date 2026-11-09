@@ -2,6 +2,8 @@ defmodule Takeaway.Events do
   @moduledoc "Events, which group speeches."
   import Ecto.Query
   alias Takeaway.Events.Event
+  alias Takeaway.Organizers
+  alias Takeaway.Organizers.Organizer
   alias Takeaway.Repo
 
   def list_events, do: Repo.all(from e in Event, order_by: [desc: e.inserted_at, desc: e.id])
@@ -11,26 +13,30 @@ defmodule Takeaway.Events do
   def get_event_by_join_code(code), do: Repo.get_by(Event, join_code: String.upcase(code))
 
   @doc """
-  The event with `id`, only when `token` matches its admin token (constant-time compare).
-  Returns `nil` for a missing event or a wrong token, so callers can't tell them apart.
+  The event with `id`, only when `organizer` owns it.
+  Returns `nil` for a missing or foreign event, so callers can't tell them apart.
   """
-  def get_event_for_admin(id, token) when is_binary(token) do
+  def get_event_for_organizer(id, %Organizer{} = organizer) do
     with {int, ""} <- Integer.parse(to_string(id)),
-         %Event{admin_token: expected} = event when is_binary(expected) <- get_event(int),
-         true <- Plug.Crypto.secure_compare(expected, token) do
+         %Event{} = event <- get_event(int),
+         true <- Organizers.owns_event?(organizer, event) do
       event
     else
       _ -> nil
     end
   end
 
-  def get_event_for_admin(_id, _token), do: nil
+  def get_event_for_organizer(_id, _organizer), do: nil
 
-  @doc "Organizer link to the event's tickets page (contains the secret admin token)."
-  def tickets_path(%Event{id: id, admin_token: token}),
-    do: "/events/#{id}/tickets?" <> URI.encode_query(token: token)
+  def list_events_for_organizer(%Organizer{id: id}),
+    do: Repo.all(from e in Event, where: e.organizer_id == ^id, order_by: [desc: e.id])
 
-  def create_event(attrs), do: %Event{} |> Event.changeset(attrs) |> Repo.insert()
+  @doc "Organizer page for the event's tickets."
+  def tickets_path(%Event{id: id}), do: "/events/#{id}/tickets"
+
+  def create_event(attrs, organizer \\ nil) do
+    %Event{organizer_id: organizer && organizer.id} |> Event.changeset(attrs) |> Repo.insert()
+  end
 
   def update_event(%Event{} = event, attrs), do: event |> Event.changeset(attrs) |> Repo.update()
 end

@@ -9,8 +9,12 @@ defmodule Takeaway.Events.Event do
     field :join_code, :string
     field :started_at, :utc_datetime
     field :ended_at, :utc_datetime
-    # Secret that unlocks the organizer pages (e.g. tickets). Generated, never cast.
+
+    # Legacy secret from before organizer accounts; no longer unlocks anything. Generated, never cast.
     field :admin_token, :string, redact: true
+
+    # The owner; set only through `Takeaway.Organizers.claim_event/2` or `Events.create_event/2`.
+    belongs_to :organizer, Takeaway.Organizers.Organizer
 
     # Set only through `Takeaway.Billing.set_event_plan/2`, never cast.
     belongs_to :plan, Takeaway.Billing.Plan

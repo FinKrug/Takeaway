@@ -2,16 +2,17 @@ defmodule TakeawayWeb.TicketsLive do
   @moduledoc """
   Organizer page: generate tickets in bulk or import them from emails / CSV.
 
-  Reachable only with the event's secret admin token:
-  `/events/:id/tickets?token=...` (see `Takeaway.Events.tickets_path/1`).
+  Reachable only by the organizer who owns the event: `/events/:id/tickets`
+  (see `Takeaway.Events.tickets_path/1`), linked from the organizer dashboard
+  and from each speech page.
   """
   use TakeawayWeb, :live_view
 
   alias Takeaway.{Events, Tickets}
 
   @impl true
-  def mount(%{"id" => id} = params, _session, socket) do
-    case Events.get_event_for_admin(id, params["token"]) do
+  def mount(%{"id" => id}, _session, socket) do
+    case Events.get_event_for_organizer(id, socket.assigns.current_organizer) do
       nil ->
         {:ok, socket |> put_flash(:error, "Event not found") |> push_navigate(to: ~p"/")}
 
