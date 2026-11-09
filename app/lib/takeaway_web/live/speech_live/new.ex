@@ -73,32 +73,54 @@ defmodule TakeawayWeb.SpeechLive.New do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <div class="mx-auto max-w-xl px-4 py-6 space-y-6">
-        <.header>Create a speech</.header>
-        <.form for={@form} id="speech-form" phx-change="validate" phx-submit="save" class="space-y-4">
-          <.input field={@form[:title]} label="Title" required />
-          <.input field={@form[:description]} type="textarea" label="Description" />
+      <.header>
+        Create a speech
+        <:subtitle>
+          Attendees get a code to join. Your plan and slides help Takeaway group their questions
+          and write the summary.
+        </:subtitle>
+      </.header>
+
+      <.form for={@form} id="speech-form" phx-change="validate" phx-submit="save" class="space-y-5">
+        <.card class="space-y-4">
+          <.input field={@form[:title]} label="Title" placeholder="What's your talk called?" required />
+          <.input
+            field={@form[:description]}
+            type="textarea"
+            label="Description"
+            placeholder="One or two sentences attendees will see when they join."
+            rows="3"
+          />
           <.input
             field={@form[:tags]}
-            label="Tags (comma separated)"
+            label="Tags"
             placeholder="elixir, liveview, realtime"
+            hint="Comma separated."
           />
+        </.card>
 
+        <.card title="Materials" class="space-y-4">
           <div>
-            <label class="label font-semibold mb-1">Speech plan / transcript</label>
-            <.live_file_input upload={@uploads.plan} class="file-input w-full" />
+            <label for={@uploads.plan.ref}>
+              <.field_label>Speech plan or transcript</.field_label>
+            </label>
+            <.live_file_input upload={@uploads.plan} class={file_input_class()} />
+            <p class="mt-1.5 text-sm text-muted">.txt, .md, .pdf, .doc or .docx, up to 10 MB.</p>
             <.upload_entries upload={@uploads.plan} name="plan" />
           </div>
 
           <div>
-            <label class="label font-semibold mb-1">Slides</label>
-            <.live_file_input upload={@uploads.slides} class="file-input w-full" />
+            <label for={@uploads.slides.ref}>
+              <.field_label>Slides</.field_label>
+            </label>
+            <.live_file_input upload={@uploads.slides} class={file_input_class()} />
+            <p class="mt-1.5 text-sm text-muted">.pdf, .ppt or .pptx, up to 50 MB.</p>
             <.upload_entries upload={@uploads.slides} name="slides" />
           </div>
+        </.card>
 
-          <button type="submit" class="btn btn-primary w-full">Create speech</button>
-        </.form>
-      </div>
+        <.button type="submit" size="lg" class="w-full">Create speech</.button>
+      </.form>
     </Layouts.app>
     """
   end
@@ -108,20 +130,36 @@ defmodule TakeawayWeb.SpeechLive.New do
 
   defp upload_entries(assigns) do
     ~H"""
-    <div :for={entry <- @upload.entries} class="flex items-center gap-2 text-sm mt-1">
-      <span class="flex-1 truncate">{entry.client_name} ({entry.progress}%)</span>
-      <button
-        type="button"
-        phx-click="cancel-upload"
-        phx-value-ref={entry.ref}
-        phx-value-upload={@name}
-        class="btn btn-ghost btn-xs"
-      >
-        remove
-      </button>
-      <span :for={err <- upload_errors(@upload, entry)} class="text-error">
+    <div
+      :for={entry <- @upload.entries}
+      class="mt-2 rounded-xl bg-sunken px-3 py-2 text-sm motion-safe:animate-pop"
+    >
+      <div class="flex items-center gap-2">
+        <.icon name="hero-document-mini" class="size-4 shrink-0 text-muted" />
+        <span class="min-w-0 flex-1 truncate font-medium">{entry.client_name}</span>
+        <span class="tabular-nums text-muted">{entry.progress}%</span>
+        <.button
+          type="button"
+          variant="ghost"
+          size="sm"
+          class="-mr-2 h-7 px-2"
+          phx-click="cancel-upload"
+          phx-value-ref={entry.ref}
+          phx-value-upload={@name}
+          aria-label={"Remove #{entry.client_name}"}
+        >
+          <.icon name="hero-x-mark-mini" class="size-4" />
+        </.button>
+      </div>
+      <div class="mt-2 h-1 overflow-hidden rounded-full bg-line">
+        <div
+          class="h-full rounded-full bg-brand transition-[width] duration-300"
+          style={"width: #{entry.progress}%"}
+        />
+      </div>
+      <p :for={err <- upload_errors(@upload, entry)} class="mt-1.5 font-medium text-danger">
         {error_to_string(err)}
-      </span>
+      </p>
     </div>
     """
   end

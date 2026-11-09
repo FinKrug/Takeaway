@@ -1,7 +1,7 @@
 defmodule TakeawayWeb.Layouts do
   @moduledoc """
-  This module holds layouts and related functionality
-  used by your application.
+  Takeaway's layouts: the root HTML skeleton (`layouts/root.html.heex`) and the
+  mobile-first app shell, `app/1`, that every page renders inside.
   """
   use TakeawayWeb, :html
 
@@ -12,11 +12,12 @@ defmodule TakeawayWeb.Layouts do
   embed_templates "layouts/*"
 
   @doc """
-  Renders your app layout.
+  Renders the app shell: a sticky header with the logo, navigation and theme
+  toggle; the page content; and a footer.
 
-  This function is typically invoked from every template,
-  and it often contains your application menu, sidebar,
-  or similar.
+  Content is a single column sized for phones and capped at `max-w-2xl`
+  (`wide` raises it to `max-w-5xl`, for the landing page). It fades in on
+  every navigation.
 
   ## Examples
 
@@ -24,6 +25,7 @@ defmodule TakeawayWeb.Layouts do
         <h1>Content</h1>
       </Layouts.app>
 
+      <Layouts.app flash={@flash} wide>...</Layouts.app>
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
 
@@ -31,42 +33,70 @@ defmodule TakeawayWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://phoenix.hexdocs.pm/scopes.html)"
 
+  attr :wide, :boolean, default: false, doc: "use a wider content column"
+
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://phoenix.hexdocs.pm/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </header>
+    <div class="flex min-h-dvh flex-col">
+      <header class="sticky top-0 z-40 border-b border-line/70 bg-canvas/80 pt-[env(safe-area-inset-top)] backdrop-blur-md supports-[backdrop-filter]:bg-canvas/70">
+        <nav
+          class={[
+            "mx-auto flex h-14 w-full items-center justify-between gap-3 px-4 sm:h-16 sm:px-6",
+            if(@wide, do: "max-w-5xl", else: "max-w-2xl")
+          ]}
+          aria-label="Main"
+        >
+          <.link
+            navigate={~p"/"}
+            class="-m-1 rounded-lg p-1 transition-opacity hover:opacity-80"
+            aria-label="Takeaway home"
+            id="nav-home"
+          >
+            <.logo class="h-7 sm:h-8" />
+          </.link>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
-      </div>
-    </main>
+          <div class="flex items-center gap-1 sm:gap-2">
+            <.link
+              href={~p"/#join"}
+              id="nav-join"
+              class="rounded-lg px-2.5 py-2 text-sm font-semibold text-muted transition-colors hover:bg-sunken hover:text-ink"
+            >
+              Join
+            </.link>
+            <.button navigate={~p"/speeches/new"} size="sm" id="nav-new-speech">
+              <.icon name="hero-plus-mini" class="size-4" />
+              <span class="sr-only sm:not-sr-only">New speech</span>
+              <span class="sm:hidden" aria-hidden="true">New</span>
+            </.button>
+            <.theme_toggle />
+          </div>
+        </nav>
+      </header>
+
+      <main
+        id="main"
+        class={[
+          "mx-auto w-full flex-1 px-4 pb-16 pt-6 sm:px-6 sm:pt-10 motion-safe:animate-enter",
+          if(@wide, do: "max-w-5xl", else: "max-w-2xl")
+        ]}
+      >
+        <div class="space-y-6">
+          {render_slot(@inner_block)}
+        </div>
+      </main>
+
+      <footer class="border-t border-line/70 pb-[env(safe-area-inset-bottom)]">
+        <div class={[
+          "mx-auto flex w-full flex-col gap-1 px-4 py-6 text-sm text-muted sm:flex-row sm:items-center sm:justify-between sm:px-6",
+          if(@wide, do: "max-w-5xl", else: "max-w-2xl")
+        ]}>
+          <.logo class="h-5" />
+          <p>Questions, notes and summaries for live talks.</p>
+        </div>
+      </footer>
+    </div>
 
     <.flash_group flash={@flash} />
     """
@@ -122,39 +152,34 @@ defmodule TakeawayWeb.Layouts do
   end
 
   @doc """
-  Provides dark vs light theme toggle based on themes defined in app.css.
-
-  See <head> in root.html.heex which applies the theme before page load.
+  Light/dark toggle: one button that flips between the two. Following the
+  system setting is the default until someone picks one (see the theme script
+  in root.html.heex).
   """
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 [[data-theme-source=system]_&]:!left-0 transition-[left]" />
-
+    <span class="contents">
       <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="system"
-      >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
-      >
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
+        type="button"
+        id="theme-dark"
+        class="grid size-9 place-items-center rounded-lg text-muted transition-colors hover:bg-sunken hover:text-ink dark:hidden"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
+        aria-label="Switch to dark mode"
       >
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
+        <.icon name="hero-moon-mini" class="size-5" />
       </button>
-    </div>
+      <button
+        type="button"
+        id="theme-light"
+        class="hidden size-9 place-items-center rounded-lg text-muted transition-colors hover:bg-sunken hover:text-ink dark:grid"
+        phx-click={JS.dispatch("phx:set-theme")}
+        data-phx-theme="light"
+        aria-label="Switch to light mode"
+      >
+        <.icon name="hero-sun-mini" class="size-5" />
+      </button>
+    </span>
     """
   end
 end

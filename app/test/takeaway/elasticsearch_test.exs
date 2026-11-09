@@ -46,7 +46,13 @@ defmodule Takeaway.ElasticsearchTest do
         Elasticsearch.delete_index(test_notes_index)
       end)
 
-      {:ok, %{test_index: test_index, schema: schema, test_notes_index: test_notes_index, notes_schema: notes_schema}}
+      {:ok,
+       %{
+         test_index: test_index,
+         schema: schema,
+         test_notes_index: test_notes_index,
+         notes_schema: notes_schema
+       }}
     end
 
     test "creates and verifies index existence", %{test_index: test_index, schema: schema} do
@@ -116,7 +122,9 @@ defmodule Takeaway.ElasticsearchTest do
       assert {:ok, _} = Elasticsearch.index_note(note, index: test_notes_index, refresh: true)
 
       assert {:ok, %{"total" => %{"value" => total}, "hits" => [hit | _]}} =
-               Elasticsearch.search_notes("speech_999", "user_77", "CAP theorem", index: test_notes_index)
+               Elasticsearch.search_notes("speech_999", "user_77", "CAP theorem",
+                 index: test_notes_index
+               )
 
       assert total >= 1
       assert hit["_source"]["body"] =~ "CAP theorem"

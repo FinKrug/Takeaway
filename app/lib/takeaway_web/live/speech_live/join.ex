@@ -58,35 +58,69 @@ defmodule TakeawayWeb.SpeechLive.Join do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <div class="mx-auto max-w-xl px-4 py-6 space-y-4">
-        <p :if={is_nil(@speech)} id="join-not-found">No speech found for that code.</p>
-        <div :if={@speech} class="space-y-2">
-          <.header>{@speech.title}</.header>
-          <p :if={is_nil(@speech.started_at)} id="join-waiting">
-            Waiting for the speaker to start...
+      <.empty_state
+        :if={is_nil(@speech)}
+        id="join-not-found"
+        icon="hero-magnifying-glass"
+        title="No speech found for that code."
+      >
+        Check the code on the speaker's slide and try again.
+        <:actions>
+          <.button navigate={~p"/#join"} variant="secondary">Enter another code</.button>
+        </:actions>
+      </.empty_state>
+
+      <div :if={@speech} class="space-y-6">
+        <.header>{@speech.title}</.header>
+
+        <.card
+          :if={is_nil(@speech.started_at)}
+          id="join-waiting"
+          tone="sunken"
+          class="flex items-center gap-3"
+        >
+          <span class="text-warning"><.live_dot class="size-2.5" /></span>
+          <p class="font-medium">Waiting for the speaker to start...</p>
+        </.card>
+
+        <.card
+          :if={@speech.started_at && is_nil(@speech.ended_at)}
+          id="join-live"
+          tone="brand"
+          class="flex items-center gap-3"
+        >
+          <span class="text-danger"><.live_dot class="size-2.5" /></span>
+          <p class="font-medium">The speech is live.</p>
+        </.card>
+
+        <.card :if={@speech.ended_at} id="join-ended" tone="sunken" class="flex items-center gap-3">
+          <.icon name="hero-check-circle" class="size-5 text-success" />
+          <p class="font-medium">The speech has ended.</p>
+        </.card>
+
+        <.card :if={@speech.ended_at && @user_id} id="attendee-summary" title="Your cliffnotes">
+          <p :if={is_nil(@summary)} id="summary-loading" class="flex items-center gap-2 text-sm text-muted">
+            <.spinner /> Preparing your summary...
           </p>
-          <p :if={@speech.started_at && is_nil(@speech.ended_at)} id="join-live">
-            The speech is live.
-          </p>
-          <p :if={@speech.ended_at} id="join-ended">The speech has ended.</p>
-          <div
-            :if={@speech.ended_at && @user_id}
-            id="attendee-summary"
-            class="card bg-base-200 p-4 space-y-3"
-          >
-            <h2 class="font-semibold text-lg">Your cliffnotes</h2>
-            <p :if={is_nil(@summary)} id="summary-loading" class="text-sm opacity-70">
-              Preparing your summary...
+          <div :if={@summary} class="space-y-5 motion-safe:animate-enter">
+            <p id="cliffnotes" class="whitespace-pre-line text-pretty leading-relaxed">
+              {@summary.content["cliffnotes"]}
             </p>
-            <div :if={@summary} class="space-y-3">
-              <p id="cliffnotes" class="whitespace-pre-line">{@summary.content["cliffnotes"]}</p>
-              <div :if={@summary.content["notes"] != []} id="my-notes">
-                <h3 class="font-semibold">Your notes</h3>
-                <p :for={n <- @summary.content["notes"]} class="whitespace-pre-line">{n}</p>
+            <div :if={@summary.content["notes"] != []} id="my-notes">
+              <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+                Your notes
+              </h3>
+              <div class="space-y-2">
+                <p
+                  :for={n <- @summary.content["notes"]}
+                  class="whitespace-pre-line rounded-xl bg-sunken px-3.5 py-2.5 text-pretty"
+                >
+                  {n}
+                </p>
               </div>
             </div>
           </div>
-        </div>
+        </.card>
       </div>
     </Layouts.app>
     """

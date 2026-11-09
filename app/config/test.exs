@@ -38,5 +38,4 @@ config :phoenix,
   sort_verified_routes_query_params: true
 
 # Disable automatic background index bootstrapper during tests
-config :takeaway, :elasticsearch,
-  auto_setup: false
+config :takeaway, :elasticsearch, auto_setup: false

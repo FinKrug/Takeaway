@@ -69,20 +69,13 @@ defmodule Takeaway.MixProject do
        app: false,
        compile: false,
        depth: 1},
-      {:daisyui,
-       github: "saadeghi/daisyui",
-       tag: "v5.5.20",
-       sparse: "packages/bundle",
-       app: false,
-       compile: false,
-       depth: 1},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:req, "~> 0.5"}
+      {:req, "~> 0.5"},
       # OpenTelemetry: traces for Bandit requests, Phoenix routes/LiveViews and
       # Ecto queries, exported over OTLP to Dash0 (config/runtime.exs).
       {:opentelemetry, "~> 1.7"},
