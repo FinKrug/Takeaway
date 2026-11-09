@@ -352,13 +352,59 @@ defmodule TakeawayWeb.SpeakerLiveTest do
   describe "access control" do
     test "logged-out visitors go to the login page", %{speech: speech} do
       conn = get(Phoenix.ConnTest.build_conn(), ~p"/speeches/#{speech.id}/speak")
-      assert redirected_to(conn) == ~p"/organizers/log_in"
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "the speech's own speaker can open the page", %{speech: speech} do
+      speaker = user_fixture(%{role: "speaker", name: "Sam"})
+      link_speaker(speech, speaker)
+      conn = log_in_user(Phoenix.ConnTest.build_conn(), speaker)
+      assert {:ok, _view, html} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      assert html =~ "My Talk"
+    end
+
+    test "a speaker linked to another speech can't open the page", %{speech: speech} do
+      other = user_fixture(%{role: "speaker", name: "Other"})
+      conn = log_in_user(Phoenix.ConnTest.build_conn(), other)
+      assert {:error, {:redirect, %{to: "/"}}} = live(conn, ~p"/speeches/#{speech.id}/speak")
+    end
+
+    test "an attendee account can't open the page", %{speech: speech} do
+      conn = log_in_user(Phoenix.ConnTest.build_conn(), user_fixture())
+      conn = get(conn, ~p"/speeches/#{speech.id}/speak")
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "a speaker can't reach organizer-only pages", %{event: event} do
+      speaker = user_fixture(%{role: "speaker", name: "Sam"})
+      conn = log_in_user(Phoenix.ConnTest.build_conn(), speaker)
+      assert conn |> get(~p"/speeches/new") |> redirected_to() == ~p"/organizers/log_in"
+
+      assert conn |> get(~p"/events/#{event.id}/tickets") |> redirected_to() ==
+               ~p"/organizers/log_in"
+    end
+
+    test "a speaker who is unlinked from the speech loses control", %{speech: speech} = ctx do
+      speaker = user_fixture(%{role: "speaker", name: "Sam"})
+      link_speaker(speech, speaker)
+      %{speech: speech} = start(%{ctx | speech: Speeches.get_speech!(speech.id)})
+      conn = log_in_user(Phoenix.ConnTest.build_conn(), speaker)
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      link_speaker(speech, nil)
+
+      html = render_hook(view, "next_slide", %{})
+      assert html =~ "can&#39;t change the slides"
     end
 
     test "another organizer can't open the page", %{speech: speech} do
       conn = log_in_organizer(Phoenix.ConnTest.build_conn(), organizer_fixture())
       assert {:error, {:redirect, %{to: "/"}}} = live(conn, ~p"/speeches/#{speech.id}/speak")
     end
+  end
+
+  defp link_speaker(speech, speaker) do
+    id = speaker && speaker.id
+    speech |> Ecto.Changeset.change(speaker_id: id) |> Takeaway.Repo.update!()
   end
 
   defp start(%{speech: speech}) do

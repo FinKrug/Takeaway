@@ -48,6 +48,25 @@ defmodule TakeawayWeb.ConnCase do
   def log_in_organizer(conn, organizer),
     do: Phoenix.ConnTest.init_test_session(conn, %{"organizer_id" => organizer.id})
 
+  @doc "Registers a speaker or attendee account with a unique email."
+  def user_fixture(attrs \\ %{}) do
+    {:ok, user} =
+      attrs
+      |> Enum.into(%{
+        role: "attendee",
+        name: "User",
+        email: "user#{System.unique_integer([:positive])}@example.com",
+        password: "correct horse"
+      })
+      |> Takeaway.Accounts.register_user()
+
+    user
+  end
+
+  @doc "Puts the user's login in the test session."
+  def log_in_user(conn, user),
+    do: Phoenix.ConnTest.init_test_session(conn, %{"user_id" => user.id})
+
   setup tags do
     Takeaway.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}

@@ -66,11 +66,12 @@ defmodule TakeawayWeb.OrganizerAuth do
   defp maybe_store_return_to(conn), do: conn
 
   # Only local paths: never redirect to another host.
-  defp safe_path("/" <> _ = path) do
+  @doc false
+  def safe_path("/" <> _ = path) do
     if String.starts_with?(path, "//") or String.contains?(path, "\\"), do: nil, else: path
   end
 
-  defp safe_path(_), do: nil
+  def safe_path(_), do: nil
 
   @doc "LiveView hook: assigns `:current_organizer`, redirecting to the login page if missing."
   def on_mount(:require_organizer, _params, session, socket) do

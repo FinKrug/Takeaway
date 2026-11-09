@@ -6,7 +6,13 @@ defmodule TakeawayWeb.AttendeeSession do
   before `SpeechLive.Join` mounts. The attendee
   (`Takeaway.Accounts.create_anonymous_attendee/0`) is stored as `"user_id"` in the signed
   session cookie; later visits, to this or any other speech, reuse it. If the stored id no
-  longer points to an attendee (deleted user), a new one is created.
+  longer points to a user (deleted user), a new one is created.
+
+  The stored user may also be a logged-in account (`TakeawayWeb.UserAuth` uses the same
+  `"user_id"` key): a registered attendee's notes and questions then belong to their
+  account. Any existing user is reused, a logged-in speaker included, so visiting a join
+  link never replaces the session's identity (which would log them out); a speaker
+  takes part in the audience under their own account.
 
   Users are only created for browsers that keep cookies, so clients that drop them can't
   create unbounded rows:
@@ -49,7 +55,7 @@ defmodule TakeawayWeb.AttendeeSession do
 
   defp current_attendee(conn) do
     with id when is_integer(id) <- get_session(conn, :user_id),
-         %{role: "attendee"} = user <- Accounts.get_user(id) do
+         %{} = user <- Accounts.get_user(id) do
       user
     else
       _ -> nil

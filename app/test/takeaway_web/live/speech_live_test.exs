@@ -93,6 +93,39 @@ defmodule TakeawayWeb.SpeechLiveTest do
     assert html =~ "can&#39;t be blank"
   end
 
+  test "a speaker email links the speech to a (new or existing) speaker", %{conn: conn} do
+    {:ok, lv, _} = live(conn, ~p"/speeches/new")
+
+    {:ok, _show, _} =
+      lv
+      |> form("#speech-form", speech: %{title: "Linked", speaker_email: " Sam@Example.com "})
+      |> render_submit()
+      |> follow_redirect(conn)
+
+    speaker = Takeaway.Accounts.get_user_by_email("sam@example.com")
+    assert speaker.role == "speaker"
+    assert [%{title: "Linked"}] = Takeaway.Accounts.list_speeches_for_speaker(speaker)
+
+    {:ok, lv, _} = live(conn, ~p"/speeches/new")
+
+    {:ok, _show, _} =
+      lv
+      |> form("#speech-form", speech: %{title: "Again", speaker_email: "sam@example.com"})
+      |> render_submit()
+      |> follow_redirect(conn)
+
+    assert length(Takeaway.Accounts.list_speeches_for_speaker(speaker)) == 2
+  end
+
+  test "a bad speaker email is refused and no speech is made", %{conn: conn} do
+    {:ok, lv, _} = live(conn, ~p"/speeches/new")
+
+    html =
+      lv |> form("#speech-form", speech: %{title: "X", speaker_email: "nope"}) |> render_submit()
+
+    assert html =~ "must be a valid email"
+  end
+
   test "leaderboard shows groups live and removes retracted questions", %{
     conn: conn,
     organizer: organizer

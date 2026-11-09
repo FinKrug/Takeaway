@@ -44,6 +44,63 @@
     </script>
   </head>
   <body>
+    <a
+      href="#main"
+      id="skip-link"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-brand focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-on-brand focus:shadow-lg"
+    >
+      Skip to content
+    </a>
+    <nav
+      id="account-nav"
+      aria-label="Account"
+      class="mx-auto flex w-full max-w-5xl items-center justify-end gap-3 px-4 pt-[env(safe-area-inset-top)] text-sm sm:px-6"
+    >
+      <%= cond do %>
+        <% assigns[:current_user] -> %>
+          <span id="nav-user-name" class="min-w-0 truncate font-semibold">
+            {@current_user.name || @current_user.email}
+          </span>
+          <.link
+            id="nav-account"
+            href={if @current_user.role == "speaker", do: ~p"/speaker", else: ~p"/account"}
+            class="rounded-lg px-2 py-2 font-semibold text-brand-strong underline-offset-4 hover:underline"
+          >
+            {if @current_user.role == "speaker", do: "Your speeches", else: "Your account"}
+          </.link>
+          <.link
+            id="nav-log-out"
+            href={~p"/users/log_out"}
+            method="delete"
+            class="rounded-lg px-2 py-2 font-semibold text-muted hover:bg-sunken hover:text-ink"
+          >
+            Log out
+          </.link>
+        <% assigns[:current_organizer] -> %>
+          <.link
+            id="nav-organizer"
+            href={~p"/organizers"}
+            class="rounded-lg px-2 py-2 font-semibold text-brand-strong underline-offset-4 hover:underline"
+          >
+            Your events
+          </.link>
+        <% true -> %>
+          <.link
+            id="nav-log-in"
+            href={~p"/users/log_in"}
+            class="rounded-lg px-2 py-2 font-semibold text-muted hover:bg-sunken hover:text-ink"
+          >
+            Log in
+          </.link>
+          <.link
+            id="nav-sign-up"
+            href={~p"/users/register"}
+            class="rounded-lg px-2 py-2 font-semibold text-brand-strong underline-offset-4 hover:underline"
+          >
+            Sign up
+          </.link>
+      <% end %>
+    </nav>
     {@inner_content}
   </body>
 </html>

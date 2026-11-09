@@ -6,17 +6,18 @@ defmodule TakeawayWeb.SpeakerLive do
   Slide controls (Prev/Next, arrow keys, presenter clickers) move the speech's current
   slide while it is live. The slide is saved on the speech and broadcast on the speech
   topic (`Takeaway.SpeechCreator.set_current_slide/3`), so attendees tag their questions
-  with it. Only the organizer who owns the speech can change it, checked on every event.
+  with it. Only the organizer who owns the speech's event, or the speech's own speaker (logged in as a
+  user), can open the page or change the slide; checked on every event.
   """
   use TakeawayWeb, :live_view
 
-  alias Takeaway.{Organizers, Questions, Slides, Speeches, SpeechCreator, Transcripts}
+  alias Takeaway.{Accounts, Organizers, Questions, Slides, Speeches, SpeechCreator, Transcripts}
 
   @max_chunk_bytes 8_000_000
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    case owned_speech(id, socket.assigns.current_organizer) do
+    case runnable_speech(id, socket.assigns) do
       nil ->
         {:ok, socket |> put_flash(:error, "Speech not found") |> redirect(to: ~p"/")}
 
@@ -52,14 +53,20 @@ defmodule TakeawayWeb.SpeakerLive do
   end
 
   # Missing and foreign speeches look the same.
-  defp owned_speech(id, organizer) do
+  defp runnable_speech(id, assigns) do
     with {int, ""} <- Integer.parse(to_string(id)),
          %{} = speech <- Speeches.get_speech(int),
-         true <- Takeaway.Organizers.owns_speech?(organizer, speech) do
+         true <- can_run?(assigns, speech) do
       speech
     else
       _ -> nil
     end
+  end
+
+  # The event's organizer, or the user the speech was assigned to as speaker.
+  defp can_run?(assigns, speech) do
+    Organizers.owns_speech?(assigns[:current_organizer], speech) or
+      Accounts.speaks?(assigns[:current_user], Speeches.get_speech(speech.id))
   end
 
   @impl true
@@ -141,13 +148,13 @@ defmodule TakeawayWeb.SpeakerLive do
 
   # The client is never trusted: the speech must be live and still owned by this organizer.
   defp change_slide(socket, n) do
-    %{speech: speech, slide_count: count, current_organizer: organizer} = socket.assigns
+    %{speech: speech, slide_count: count} = socket.assigns
 
     cond do
       not slides_open?(speech) ->
         socket
 
-      not Organizers.owns_speech?(organizer, speech) ->
+      not can_run?(socket.assigns, speech) ->
         put_flash(socket, :error, "You can't change the slides of this speech")
 
       true ->
