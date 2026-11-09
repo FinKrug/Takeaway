@@ -361,6 +361,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
     |> JS.add_class("hidden", to: "#panel-#{other}")
     |> JS.set_attribute({"aria-selected", "true"}, to: "#tab-#{tab}")
     |> JS.set_attribute({"aria-selected", "false"}, to: "#tab-#{other}")
+    |> JS.set_attribute({"tabindex", "0"}, to: "#tab-#{tab}")
+    |> JS.set_attribute({"tabindex", "-1"}, to: "#tab-#{other}")
   end
 
   attr :id, :string, required: true
@@ -376,6 +378,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
       id={@id}
       role="tab"
       aria-selected={to_string(@selected)}
+      tabindex={if @selected, do: "0", else: "-1"}
       aria-controls={@controls}
       class={[
         "inline-flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-muted",
@@ -523,6 +526,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
 
         <div id="attendee-workspace" class="space-y-4 md:space-y-0">
           <div
+            id="attendee-tablist"
+            phx-hook="TabList"
             role="tablist"
             aria-label="Notes and questions"
             class="grid grid-cols-2 gap-1 rounded-2xl bg-sunken p-1 md:hidden"
