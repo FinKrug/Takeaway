@@ -241,6 +241,16 @@ defmodule TakeawayWeb.JoinLiveTest do
       assert [%Question{slide_number: 7}] = Questions.list_questions(speech.id)
     end
 
+    test "slides extracted after joining cap the shown slide", %{conn: conn, speech: speech} do
+      {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
+      {:ok, _} = Slides.upsert_slides(speech.id, ["one", "two", "three"])
+
+      # a speaker page with an out-of-date count sends a slide past the deck
+      {:ok, _} = SpeechCreator.set_current_slide(speech, 5, 0)
+      assert has_element?(lv, "#join-current-slide", "Slide 3")
+      assert has_element?(lv, "#question-slide[value='3']")
+    end
+
     test "another speech's slide changes are ignored", %{conn: conn, speech: speech} do
       {:ok, lv, _html} = live(conn, ~p"/join/#{speech.join_code}")
       send(lv.pid, {:slide_changed, speech.id + 1, 5})

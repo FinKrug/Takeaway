@@ -58,6 +58,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
       note_form: to_form(Note.changeset(%Note{}, %{})),
       note_status: :idle,
       question_form: question_form(%{}),
+      slide_count: 0,
       current_slide: nil,
       question_ids: MapSet.new(),
       my_question_ids: MapSet.new(),
@@ -82,7 +83,8 @@ defmodule TakeawayWeb.SpeechLive.Join do
 
     # Re-read on every mount, so a reconnect catches up on anything missed.
     questions = Questions.list_questions(speech.id)
-    current_slide = SpeechCreator.current_slide(speech, Slides.count_slides(speech.id))
+    slide_count = Slides.count_slides(speech.id)
+    current_slide = SpeechCreator.current_slide(speech, slide_count)
 
     {:ok,
      socket
@@ -94,6 +96,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
        user_id: user_id,
        note_form: to_form(Note.changeset(note, %{})),
        note_status: if(note.id, do: :saved, else: :idle),
+       slide_count: slide_count,
        current_slide: current_slide,
        question_form: question_form(slide_params(current_slide)),
        question_ids: MapSet.new(questions, & &1.id),
@@ -323,6 +326,14 @@ defmodule TakeawayWeb.SpeechLive.Join do
   # The form's slide follows the speaker unless the attendee changed it (keeps the text).
   def handle_info({:slide_changed, id, n}, %{assigns: %{speech: %{id: id}}} = socket)
       when is_integer(n) do
+    # Slides may have been extracted since mount; never show a slide past a known deck.
+    count =
+      case socket.assigns.slide_count do
+        0 -> Slides.count_slides(id)
+        known -> known
+      end
+
+    n = SpeechCreator.current_slide(%{current_slide: n}, count)
     %{current_slide: old, question_form: form} = socket.assigns
     follows? = to_string(form.params["slide_number"]) == to_string(old)
 
@@ -334,7 +345,7 @@ defmodule TakeawayWeb.SpeechLive.Join do
         socket
       end
 
-    {:noreply, assign(socket, :current_slide, n)}
+    {:noreply, assign(socket, slide_count: count, current_slide: n)}
   end
 
   # Anything else on the speech topics (future events) is ignored, never a crash.

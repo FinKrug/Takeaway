@@ -8,6 +8,7 @@ defmodule Takeaway.SpeechCreator do
 
   @topic_prefix "speech:"
   @text_exts ~w(.txt .md)
+  @max_slide 999
 
   def topic(speech_id), do: @topic_prefix <> to_string(speech_id)
 
@@ -161,14 +162,18 @@ defmodule Takeaway.SpeechCreator do
   def current_slide(_speech, count) when count > 0, do: 1
   def current_slide(_speech, _count), do: nil
 
+  @doc "Highest slide number a speech can be on (the bound when no deck was extracted)."
+  def max_slide, do: @max_slide
+
   @doc """
-  Moves the speech to slide `n`, clamped to 1..`count` (just >= 1 when `count` is 0, i.e.
-  no extracted deck), saves it and broadcasts `{:slide_changed, speech_id, n}` on the
-  speech topic. Moving to the slide it is already on is a no-op without a broadcast.
+  Moves the speech to slide `n`, clamped to 1..`count` (1..`max_slide/0` when `count` is
+  0, i.e. no extracted deck), saves it and broadcasts `{:slide_changed, speech_id, n}` on
+  the speech topic. Moving to the slide it is already on is a no-op without a broadcast.
   Callers check that the user may present the speech.
   """
   def set_current_slide(%Speech{} = speech, n, count) when is_integer(n) do
-    n = if count > 0, do: n |> max(1) |> min(count), else: max(n, 1)
+    upper = if count > 0, do: min(count, @max_slide), else: @max_slide
+    n = n |> max(1) |> min(upper)
 
     if n == speech.current_slide do
       {:ok, speech}

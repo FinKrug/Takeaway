@@ -232,6 +232,53 @@ defmodule TakeawayWeb.SpeakerLiveTest do
       assert current_slide(speech) == 3
     end
 
+    test "slides extracted after the page opened bound the controls", %{conn: conn} = ctx do
+      %{speech: speech} = start(ctx)
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      assert has_element?(view, "#slide-position", "No slide yet")
+
+      {:ok, _} = Slides.upsert_slides(speech.id, ["one", "two", "three"])
+
+      render_hook(view, "next_slide", %{})
+      assert has_element?(view, "#slide-position", "Slide 2 of 3")
+
+      render_hook(view, "set_slide", %{"slide" => "5"})
+      assert has_element?(view, "#slide-position", "Slide 2 of 3")
+
+      for _ <- 1..3, do: render_hook(view, "next_slide", %{})
+      assert has_element?(view, "#slide-position", "Slide 3 of 3")
+      assert has_element?(view, "#slide-next[disabled]")
+      assert current_slide(speech) == 3
+    end
+
+    test "a stale count from mount doesn't let set_slide pass the deck", %{conn: conn} = ctx do
+      %{speech: speech} = start(ctx)
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      {:ok, _} = Slides.upsert_slides(speech.id, ["one", "two"])
+
+      render_hook(view, "set_slide", %{"slide" => "7"})
+      assert current_slide(speech) == nil
+      assert has_element?(view, "#slide-position", "Slide 1 of 2")
+    end
+
+    test "without a deck slides stop at the maximum", %{conn: conn} = ctx do
+      %{speech: speech} = start(ctx)
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      max = SpeechCreator.max_slide()
+
+      for huge <- ["1000", "99999999999999999999", 10_000_000_000],
+          do: render_hook(view, "set_slide", %{"slide" => huge})
+
+      assert has_element?(view, "#slide-position", "No slide yet")
+      assert current_slide(speech) == nil
+
+      render_hook(view, "set_slide", %{"slide" => to_string(max)})
+      assert has_element?(view, "#slide-position", "Slide #{max}")
+      assert has_element?(view, "#slide-next[disabled]")
+      render_hook(view, "next_slide", %{})
+      assert current_slide(speech) == max
+    end
+
     test "follows changes made in another tab", %{conn: conn} = ctx do
       %{speech: speech} = start(ctx)
       {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")

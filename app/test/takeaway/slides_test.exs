@@ -228,8 +228,16 @@ defmodule Takeaway.SlidesTest do
       assert_receive {:slide_changed, ^id, 1}
 
       # without a deck only the lower bound applies
-      assert {:ok, %{current_slide: 42}} = SpeechCreator.set_current_slide(speech, 42, 0)
+      assert {:ok, %{current_slide: 42} = speech} = SpeechCreator.set_current_slide(speech, 42, 0)
       assert Speeches.get_speech!(id).current_slide == 42
+
+      # ...up to a sane maximum, so huge values can't overflow the column
+      max = SpeechCreator.max_slide()
+
+      assert {:ok, %{current_slide: ^max}} =
+               SpeechCreator.set_current_slide(speech, 10_000_000_000_000, 0)
+
+      assert Speeches.get_speech!(id).current_slide == max
     end
   end
 

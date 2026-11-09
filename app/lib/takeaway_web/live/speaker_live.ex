@@ -73,6 +73,8 @@ defmodule TakeawayWeb.SpeakerLive do
     do: {:noreply, assign(socket, recording: on)}
 
   def handle_event("next_slide", _params, socket) do
+    socket = refresh_slide_count(socket)
+
     case socket.assigns.current_slide do
       nil -> {:noreply, change_slide(socket, 1)}
       n -> {:noreply, change_slide(socket, n + 1)}
@@ -80,6 +82,8 @@ defmodule TakeawayWeb.SpeakerLive do
   end
 
   def handle_event("prev_slide", _params, socket) do
+    socket = refresh_slide_count(socket)
+
     case socket.assigns.current_slide do
       nil -> {:noreply, socket}
       n -> {:noreply, change_slide(socket, n - 1)}
@@ -88,13 +92,34 @@ defmodule TakeawayWeb.SpeakerLive do
 
   # Jump to a slide; non-integer or out-of-range values are ignored.
   def handle_event("set_slide", %{"slide" => slide}, socket) do
-    count = socket.assigns.slide_count
+    socket = refresh_slide_count(socket)
+    upper = slide_max(socket.assigns.slide_count)
 
     case parse_slide(slide) do
-      {:ok, n} when n >= 1 and (count == 0 or n <= count) -> {:noreply, change_slide(socket, n)}
+      {:ok, n} when n >= 1 and n <= upper -> {:noreply, change_slide(socket, n)}
       _ -> {:noreply, socket}
     end
   end
+
+  defp slide_max(0), do: SpeechCreator.max_slide()
+  defp slide_max(count), do: min(count, SpeechCreator.max_slide())
+
+  # Slides are extracted in the background after upload, so a count of 0 read at mount
+  # may be out of date: recount before relying on it.
+  defp refresh_slide_count(%{assigns: %{slide_count: 0, speech: speech}} = socket) do
+    case Slides.count_slides(speech.id) do
+      0 ->
+        socket
+
+      count ->
+        assign(socket,
+          slide_count: count,
+          current_slide: SpeechCreator.current_slide(speech, count)
+        )
+    end
+  end
+
+  defp refresh_slide_count(socket), do: socket
 
   defp parse_slide(n) when is_integer(n), do: {:ok, n}
 
@@ -137,7 +162,7 @@ defmodule TakeawayWeb.SpeakerLive do
     do: slides_open?(speech) and is_integer(current) and current > 1
 
   defp can_next?(speech, current, count),
-    do: slides_open?(speech) and (count == 0 or is_nil(current) or current < count)
+    do: slides_open?(speech) and (is_nil(current) or current < slide_max(count))
 
   defp slide_label(nil, _count), do: "No slide yet"
   defp slide_label(n, 0), do: "Slide #{n}"
@@ -157,6 +182,7 @@ defmodule TakeawayWeb.SpeakerLive do
   # From this or another tab of the speaker; the last change wins.
   def handle_info({:slide_changed, id, n}, %{assigns: %{speech: %{id: id}}} = socket)
       when is_integer(n) do
+    socket = refresh_slide_count(socket)
     speech = %{socket.assigns.speech | current_slide: n}
 
     {:noreply,
