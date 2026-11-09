@@ -59,6 +59,25 @@ defmodule Takeaway.SlidesTest do
       assert Slides.list_slides(speech.id) == []
     end
 
+    test "the changeset ignores speech_id in attrs", %{speech: speech} do
+      changeset =
+        Slides.Slide.changeset(%Slides.Slide{}, %{
+          speech_id: speech.id,
+          slide_number: 1,
+          text: "a"
+        })
+
+      refute changeset.valid?
+      assert %{speech_id: ["can't be blank"]} = errors_on(changeset)
+
+      assert {:ok, slide} =
+               %Slides.Slide{speech_id: speech.id}
+               |> Slides.Slide.changeset(%{speech_id: speech.id + 1, slide_number: 1, text: "a"})
+               |> Repo.insert()
+
+      assert slide.speech_id == speech.id
+    end
+
     test "title is the first non-blank line" do
       assert Slides.title("Agenda\nmore") == "Agenda"
       assert Slides.title("") == ""
