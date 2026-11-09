@@ -108,8 +108,10 @@ exported from PowerPoint, Keynote or Google Slides with embedded text, which `pd
 in milliseconds per page. If OCR is needed later, add it as a `Takeaway.Slides.Extractor` step
 for the empty pages, ideally in its own Deployment.
 
-Costs: `poppler-utils` adds IMAGE_DELTA to the runtime image; `pdftotext` takes PDF_LATENCY
-and a few MB of RAM. Extractions run one at a time per pod (a lock in `Takeaway.Slides`),
+Costs: `poppler-utils` grows the runtime image from about 206 MB to 274 MB (uncompressed,
+mostly libpoppler and its shared libraries). `pdftotext` read a generated 100-page PDF in
+about 110 ms in the image (~1 ms per page; real decks with more text and fonts take a few ms
+per page) and needs a few MB of RAM, outside the BEAM heap. Extractions run one at a time per pod (a lock in `Takeaway.Slides`),
 `pdftotext` is killed after 120 s, at most 300 slides are read, and slide text is capped at
 20,000 characters (8,000 sent to the index). PPTX parts are inflated with a 5 MB cap and
 scanned without an XML parser, so zip bombs and entity tricks don't apply.
