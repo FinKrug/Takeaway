@@ -47,6 +47,51 @@ if config_env() == :dev do
     ]
 end
 
+# Speech-to-text: set STT_URL to an OpenAI-compatible /audio/transcriptions endpoint.
+if stt_url = System.get_env("STT_URL") do
+  config :takeaway, :stt, Takeaway.STT.Whisper
+
+  config :takeaway, Takeaway.STT.Whisper,
+    url: stt_url,
+    api_key: System.get_env("STT_API_KEY"),
+    model: System.get_env("STT_MODEL") || "whisper-1",
+    # Off by default: most providers (and whisper-1) don't support diarization.
+    diarize: String.downcase(System.get_env("STT_DIARIZE", "")) in ["true", "1", "yes", "on"]
+end
+
+# Post-speech summaries: set ANTHROPIC_API_KEY to have Claude write them.
+# Without it a plain extractive summary is generated instead.
+if anthropic_key = System.get_env("ANTHROPIC_API_KEY") do
+  config :takeaway, :llm, Takeaway.LLM.Anthropic
+
+  config :takeaway, Takeaway.LLM.Anthropic,
+    api_key: anthropic_key,
+    model: System.get_env("ANTHROPIC_MODEL") || "claude-sonnet-4-5"
+end
+
+# Traces to Dash0 over OTLP/HTTP. Off unless DASH0_AUTH_TOKEN is set (key
+# dash0-auth-token in Secret app-credentials, created outside git: the repo is
+# public), so the app starts and runs the same with or without it.
+if dash0_token = System.get_env("DASH0_AUTH_TOKEN") do
+  config :opentelemetry,
+    traces_exporter: :otlp,
+    resource: %{
+      service: %{
+        name: System.get_env("OTEL_SERVICE_NAME", "takeaway"),
+        version: System.get_env("APP_VERSION", "dev")
+      }
+    }
+
+  config :opentelemetry_exporter,
+    otlp_protocol: :http_protobuf,
+    otlp_endpoint:
+      System.get_env("DASH0_OTLP_ENDPOINT", "https://ingress.us-east-1.aws.dash0.com"),
+    otlp_headers: [
+      {"Authorization", "Bearer " <> dash0_token},
+      {"Dash0-Dataset", System.get_env("DASH0_DATASET", "default")}
+    ]
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

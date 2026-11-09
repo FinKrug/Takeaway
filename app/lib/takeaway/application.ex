@@ -7,6 +7,13 @@ defmodule Takeaway.Application do
 
   @impl true
   def start(_type, _args) do
+    # OpenTelemetry spans for HTTP requests, Phoenix routes and LiveViews, and
+    # Ecto queries. They're exported only when config/runtime.exs turns the
+    # Dash0 exporter on; otherwise they're dropped.
+    OpentelemetryBandit.setup()
+    OpentelemetryPhoenix.setup(adapter: :bandit)
+    OpentelemetryEcto.setup([:takeaway, :repo], db_statement: :enabled)
+
     children = [
       TakeawayWeb.Telemetry,
       Takeaway.Repo,

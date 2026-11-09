@@ -11,7 +11,18 @@ defmodule Takeaway.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      releases: releases()
+    ]
+  end
+
+  # The OTLP exporter must start before the OpenTelemetry SDK, and the SDK is
+  # :temporary so a telemetry problem can never take the app down.
+  defp releases do
+    [
+      takeaway: [
+        applications: [opentelemetry_exporter: :permanent, opentelemetry: :temporary]
+      ]
     ]
   end
 
@@ -21,7 +32,7 @@ defmodule Takeaway.MixProject do
   def application do
     [
       mod: {Takeaway.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :inets, :ssl, :crypto]
     ]
   end
 
@@ -72,6 +83,14 @@ defmodule Takeaway.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:req, "~> 0.5"}
+      # OpenTelemetry: traces for Bandit requests, Phoenix routes/LiveViews and
+      # Ecto queries, exported over OTLP to Dash0 (config/runtime.exs).
+      {:opentelemetry, "~> 1.7"},
+      {:opentelemetry_api, "~> 1.5"},
+      {:opentelemetry_exporter, "~> 1.11"},
+      {:opentelemetry_bandit, "~> 0.3"},
+      {:opentelemetry_phoenix, "~> 2.0"},
+      {:opentelemetry_ecto, "~> 1.2"}
     ]
   end
 

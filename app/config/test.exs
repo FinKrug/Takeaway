@@ -23,6 +23,9 @@ config :takeaway, TakeawayWeb.Endpoint,
 # Print only warnings and errors during test
 config :logger, level: :warning
 
+# Tests that check spans attach their own exporter to this simple processor.
+config :opentelemetry, processors: [{:otel_simple_processor, %{}}]
+
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
 

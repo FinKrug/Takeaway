@@ -9,3 +9,7 @@
 node_modules/
 npm-debug.log*
 .DS_Store
+
+# Local agent tooling: per-task worktrees and personal workflow scripts
+.grok/worktrees/
+.claude/workflows/work-my-tasks.js

@@ -5,7 +5,7 @@ metadata:
   labels:
     app: app
 spec:
-  # Remove this line when you turn on the HPA (examples/hpa), or Argo CD and
+  # Remove this line when you turn on the HPA, or Argo CD and
   # the autoscaler will keep resetting each other.
   replicas: 2
   selector:
@@ -73,6 +73,28 @@ spec:
                 secretKeyRef:
                   name: app-credentials
                   key: secret-key-base
+            # Traces to Dash0 (config/runtime.exs). Optional: until key
+            # dash0-auth-token exists in Secret app-credentials (created outside
+            # git, see examples/agent-workflows/README.md), the app runs untraced.
+            - name: DASH0_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: app-credentials
+                  key: dash0-auth-token
+                  optional: true
+            - name: OTEL_SERVICE_NAME
+              value: "takeaway"
+            # Lets Dash0 match traces to the Kubernetes pod they came from.
+            - name: K8S_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: K8S_POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "deployment.environment.name=hackathon,k8s.namespace.name=team-takeaway,k8s.deployment.name=app,k8s.pod.name=$(K8S_POD_NAME),k8s.pod.uid=$(K8S_POD_UID)"
           resources:
             requests:
               cpu: 100m

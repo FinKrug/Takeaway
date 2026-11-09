@@ -28,8 +28,11 @@ takeaway-*.tar
 # Ignore assets that are produced by build tools.
 /priv/static/assets/
 
-# Ignore digested assets cache.
+# Ignore digested assets cache and the digested/gzipped copies `mix phx.digest`
+# writes next to the originals (the Docker build regenerates them).
 /priv/static/cache_manifest.json
+/priv/static/**/*.gz
+/priv/static/**/*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].*
 
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
