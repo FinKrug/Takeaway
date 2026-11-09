@@ -3,6 +3,11 @@ defmodule Takeaway.Questions.Grouping do
   Best-effort, speech-scoped grouping. Elasticsearch supplies candidates; Postgres
   owns memberships. A speech row lock serializes assignment across app replicas.
   Search failure leaves a singleton. Counts always exclude retracted questions.
+  The default content-word threshold is 0.6; ES uses min_term_freq/min_doc_freq 1
+  and minimum_should_match 70%. The labelled 40-question/eight-topic local fixture
+  yields precision 1.0 and recall 1.0 over 780 pairs (80 positive pairs), with no
+  false merges. That fixture stubs ES retrieval and exercises the recent-DB bridge;
+  it does not establish live Elasticsearch precision/recall.
   """
   import Ecto.Query
   require Logger

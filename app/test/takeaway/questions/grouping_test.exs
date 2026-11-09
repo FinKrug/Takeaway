@@ -41,6 +41,67 @@ defmodule Takeaway.Questions.GroupingTest do
              ctx.speech.id |> Questions.list_questions() |> Takeaway.Summaries.question_groups()
   end
 
+  test "tied counts use earliest active question and respect the limit", ctx do
+    first = question(ctx, "Why does zebra scheduling fail?")
+    second = question(ctx, "How does alpha replication work?")
+    assert {:ok, _} = Grouping.assign(first)
+    assert {:ok, _} = Grouping.assign(second)
+    assert [%{text: first_text}, %{text: second_text}] = Questions.list_top_groups(ctx.speech.id)
+    assert first_text == first.text
+    assert second_text == second.text
+    assert [%{text: ^first_text}] = Questions.list_top_groups(ctx.speech.id, limit: 1)
+    assert {:ok, _} = Questions.retract_question_by(first.id, ctx.user)
+    assert [%{text: ^second_text, count: 1}] = Questions.list_top_groups(ctx.speech.id)
+  end
+
+  test "a group of three drops to two and then disappears after the last retraction", ctx do
+    questions = for _ <- 1..3, do: question(ctx, "How does distributed consensus work?")
+    Enum.each(questions, &Grouping.assign/1)
+    assert [%{count: 3}] = Questions.list_top_groups(ctx.speech.id)
+    [first | rest] = questions
+    {:ok, retracted} = Questions.retract_question_by(first.id, ctx.user)
+    Grouping.retract(retracted)
+    assert [%{count: 2, text: representative}] = Questions.list_top_groups(ctx.speech.id)
+    assert representative == hd(rest).text
+
+    for q <- rest do
+      {:ok, retracted} = Questions.retract_question_by(q.id, ctx.user)
+      Grouping.retract(retracted)
+    end
+
+    assert Questions.list_top_groups(ctx.speech.id) == []
+    assert Repo.aggregate(from(g in Group, where: g.speech_id == ^ctx.speech.id), :count) == 0
+  end
+
+  test "labelled 40-question sample has no false merges or missed groups", ctx do
+    sample =
+      Path.expand("../../fixtures/question_grouping.json", __DIR__)
+      |> File.read!()
+      |> Jason.decode!()
+
+    assigned =
+      for row <- sample do
+        q = question(ctx, row["text"])
+        assert {:ok, grouped} = Grouping.assign(q)
+        {row["group"], grouped.group_id}
+      end
+
+    pairs =
+      for {a, i} <- Enum.with_index(assigned), {b, j} <- Enum.with_index(assigned), i < j do
+        {elem(a, 0) == elem(b, 0), elem(a, 1) == elem(b, 1)}
+      end
+
+    true_positives = Enum.count(pairs, &(&1 == {true, true}))
+    false_positives = Enum.count(pairs, &(&1 == {false, true}))
+    false_negatives = Enum.count(pairs, &(&1 == {true, false}))
+    assert length(sample) == 40
+    assert length(pairs) == 780
+    assert true_positives == 80
+    assert false_positives == 0
+    assert false_negatives == 0
+    assert Enum.map(Questions.list_top_groups(ctx.speech.id), & &1.count) == List.duplicate(5, 8)
+  end
+
   test "rejects stale and foreign search hits", ctx do
     {:ok, foreign} = Speeches.create_speech(%{title: "Other", event_id: ctx.speech.event_id})
     outsider = question(%{ctx | speech: foreign}, "How does distributed consensus work?")

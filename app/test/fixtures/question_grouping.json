@@ -1,0 +1,162 @@
+[
+  {
+    "group": 1,
+    "text": "How does distributed consensus raft work?"
+  },
+  {
+    "group": 1,
+    "text": "Can you explain distributed consensus raft?"
+  },
+  {
+    "group": 1,
+    "text": "What about distributed consensus raft?"
+  },
+  {
+    "group": 1,
+    "text": "Why do we need distributed consensus raft?"
+  },
+  {
+    "group": 1,
+    "text": "How is distributed consensus raft handled?"
+  },
+  {
+    "group": 2,
+    "text": "How does memory allocation limits work?"
+  },
+  {
+    "group": 2,
+    "text": "Can you explain memory allocation limits?"
+  },
+  {
+    "group": 2,
+    "text": "What about memory allocation limits?"
+  },
+  {
+    "group": 2,
+    "text": "Why do we need memory allocation limits?"
+  },
+  {
+    "group": 2,
+    "text": "How is memory allocation limits handled?"
+  },
+  {
+    "group": 3,
+    "text": "How does database replica failures work?"
+  },
+  {
+    "group": 3,
+    "text": "Can you explain database replica failures?"
+  },
+  {
+    "group": 3,
+    "text": "What about database replica failures?"
+  },
+  {
+    "group": 3,
+    "text": "Why do we need database replica failures?"
+  },
+  {
+    "group": 3,
+    "text": "How is database replica failures handled?"
+  },
+  {
+    "group": 4,
+    "text": "How does container image registry work?"
+  },
+  {
+    "group": 4,
+    "text": "Can you explain container image registry?"
+  },
+  {
+    "group": 4,
+    "text": "What about container image registry?"
+  },
+  {
+    "group": 4,
+    "text": "Why do we need container image registry?"
+  },
+  {
+    "group": 4,
+    "text": "How is container image registry handled?"
+  },
+  {
+    "group": 5,
+    "text": "How does network request latency work?"
+  },
+  {
+    "group": 5,
+    "text": "Can you explain network request latency?"
+  },
+  {
+    "group": 5,
+    "text": "What about network request latency?"
+  },
+  {
+    "group": 5,
+    "text": "Why do we need network request latency?"
+  },
+  {
+    "group": 5,
+    "text": "How is network request latency handled?"
+  },
+  {
+    "group": 6,
+    "text": "How does cluster node scheduling work?"
+  },
+  {
+    "group": 6,
+    "text": "Can you explain cluster node scheduling?"
+  },
+  {
+    "group": 6,
+    "text": "What about cluster node scheduling?"
+  },
+  {
+    "group": 6,
+    "text": "Why do we need cluster node scheduling?"
+  },
+  {
+    "group": 6,
+    "text": "How is cluster node scheduling handled?"
+  },
+  {
+    "group": 7,
+    "text": "How does application security tokens work?"
+  },
+  {
+    "group": 7,
+    "text": "Can you explain application security tokens?"
+  },
+  {
+    "group": 7,
+    "text": "What about application security tokens?"
+  },
+  {
+    "group": 7,
+    "text": "Why do we need application security tokens?"
+  },
+  {
+    "group": 7,
+    "text": "How is application security tokens handled?"
+  },
+  {
+    "group": 8,
+    "text": "How does storage volume backups work?"
+  },
+  {
+    "group": 8,
+    "text": "Can you explain storage volume backups?"
+  },
+  {
+    "group": 8,
+    "text": "What about storage volume backups?"
+  },
+  {
+    "group": 8,
+    "text": "Why do we need storage volume backups?"
+  },
+  {
+    "group": 8,
+    "text": "How is storage volume backups handled?"
+  }
+]
