@@ -40,6 +40,16 @@ if config_env() == :dev do
     ]
 end
 
+# Speech-to-text: set STT_URL to an OpenAI-compatible /audio/transcriptions endpoint.
+if stt_url = System.get_env("STT_URL") do
+  config :takeaway, :stt, Takeaway.STT.Whisper
+
+  config :takeaway, Takeaway.STT.Whisper,
+    url: stt_url,
+    api_key: System.get_env("STT_API_KEY"),
+    model: System.get_env("STT_MODEL") || "whisper-1"
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

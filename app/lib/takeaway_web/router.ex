@@ -29,6 +29,7 @@ defmodule TakeawayWeb.Router do
     live "/speeches/new", SpeechLive.New
     live "/speeches/:code", SpeechLive.Show
     live "/join/:code", SpeechLive.Join
+    live "/speeches/:id/speak", SpeakerLive
   end
 
   # Other scopes may use custom stacks.
