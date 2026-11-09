@@ -3,7 +3,7 @@ defmodule Takeaway.SpeechCreator do
   Creates a speech together with its uploaded artifacts (plan/transcript and
   slides), and announces speech starts over PubSub.
   """
-  alias Takeaway.{Events, Repo, Speeches}
+  alias Takeaway.{Events, Repo, Slides, Speeches}
 
   @topic_prefix "speech:"
   @text_exts ~w(.txt .md)
@@ -36,8 +36,22 @@ defmodule Takeaway.SpeechCreator do
 
   With `opts[:organizer]` the speech joins that organizer's event (created on
   first use), so only they can run it. Without one it joins a shared, unowned event.
+
+  After the transaction commits, the text of each slides artifact is extracted
+  in the background (`Takeaway.Slides.extract_async/1`); this function doesn't
+  wait for it.
   """
   def create_speech(attrs, files \\ [], opts \\ []) do
+    with {:ok, speech} <- insert_speech(attrs, files, opts) do
+      speech.id
+      |> Speeches.list_artifacts("slides")
+      |> Enum.each(&Slides.extract_async/1)
+
+      {:ok, speech}
+    end
+  end
+
+  defp insert_speech(attrs, files, opts) do
     Repo.transaction(fn ->
       event = event_for(opts[:organizer])
 
