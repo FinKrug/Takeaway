@@ -154,7 +154,9 @@ defmodule Takeaway.Elasticsearch do
   def init_indices do
     Enum.reduce_while(@indices, :ok, fn {index_name, schema}, :ok ->
       case Req.head(client(), url: "/#{index_name}") do
-        {:ok, %{status: 200}} -> {:cont, :ok}
+        {:ok, %{status: 200}} ->
+          {:cont, :ok}
+
         {:ok, %{status: 404}} ->
           Logger.info("[Elasticsearch] Creating index: #{index_name}")
 
@@ -163,8 +165,11 @@ defmodule Takeaway.Elasticsearch do
             err -> {:halt, err}
           end
 
-        {:ok, %{status: status}} -> {:halt, {:error, {:status, status}}}
-        {:error, reason} -> {:halt, {:error, reason}}
+        {:ok, %{status: status}} ->
+          {:halt, {:error, {:status, status}}}
+
+        {:error, reason} ->
+          {:halt, {:error, reason}}
       end
     end)
   end

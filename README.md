@@ -27,7 +27,7 @@ Main code lives in `app/lib/takeaway/` (contexts: `speeches`, `questions`, `note
 | `DATABASE_URL` | Postgres URL (from Secret `db-app` in the cluster). |
 | `SECRET_KEY_BASE` | Phoenix cookie signing (Secret `app-credentials`). |
 | `PHX_HOST`, `PORT` | Public host and listen port (8080 in the image). |
-| `STT_URL`, `STT_API_KEY`, `STT_MODEL` | Speech-to-text endpoint (default model `whisper-1`). |
+| `STT_URL`, `STT_API_KEY`, `STT_MODEL` | Speech-to-text endpoint (default model `whisper-1`). In the cluster these point at Service `whisper` (`Systran/faster-whisper-small`). |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Claude for summaries (optional). |
 | `POOL_SIZE` | Ecto pool size. |
 | `DASH0_AUTH_TOKEN`, `DASH0_OTLP_ENDPOINT`, `DASH0_DATASET` | OpenTelemetry traces to Dash0 (off without a token; defaults US East, dataset `default`). |
