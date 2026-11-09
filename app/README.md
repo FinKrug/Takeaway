@@ -48,6 +48,27 @@ Interaction defaults: buttons press in (`active:scale`), fields get a brand focu
 LiveView navigations show the brand-colored top bar and the content fades in. All motion is
 skipped for people who ask for reduced motion.
 
+## Live question groups
+
+The organizer dashboard ranks active question groups by count. Submissions are saved
+and broadcast immediately; `Takeaway.Questions.GroupWorker` handles grouping in the
+background. It queries Elasticsearch `more_like_this` within the speech, then checks
+candidate membership in Postgres and requires content-word Jaccard similarity of at
+least 0.6. `config :takeaway, :question_group_similarity, 0.6` adjusts that threshold.
+Generic questions with fewer than two content words stay separate. This is lexical
+similarity, so paraphrases with different vocabulary can remain separate.
+
+Recent Postgres questions bridge Elasticsearch's refresh interval. A row lock on the
+speech serializes assignment across replicas; repeated events are idempotent. Search
+timeouts/failures leave singleton groups and never reject a saved question. Counts
+are derived from active questions, excluding retractions, and empty groups are
+removed. `Takeaway.Questions.list_top_groups(speech_id, limit: 10)` exposes ranked
+groups. Speaker summaries finish pending assignments before caching their results.
+
+Run normal checks with `mix precommit`. Tests default to Postgres on port 5432;
+set `PGPORT` to use an isolated instance. Live Elasticsearch tests are opt-in:
+`mix test --include elasticsearch test/takeaway/elasticsearch_test.exs`.
+
 ## Post-speech summaries
 
 The speaker's **End Speech** button sets `ended_at` and broadcasts `{:speech_ended, speech}`.

@@ -62,6 +62,8 @@ spec:
                   key: uri
             - name: POOL_SIZE
               value: "5"
+            - name: ELASTICSEARCH_URL
+              value: "http://elasticsearch:9200"
             - name: TEAM_NAME
               value: "takeaway"
             - name: PHX_HOST
