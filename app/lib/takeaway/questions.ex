@@ -19,7 +19,7 @@ defmodule Takeaway.Questions do
   end
 
   @doc "PubSub topic for a speech's question events."
-  def topic(speech_id), do: "speech:#{speech_id}"
+  def topic(speech_id), do: "speech:#{speech_id}:questions"
 
   def subscribe(speech_id), do: Phoenix.PubSub.subscribe(Takeaway.PubSub, topic(speech_id))
 
