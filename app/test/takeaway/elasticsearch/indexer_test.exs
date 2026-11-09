@@ -25,5 +25,20 @@ defmodule Takeaway.Elasticsearch.IndexerTest do
 
       assert :ok = Indexer.index_segment(segment)
     end
+
+    test "resolves speech_id directly from artifact association without database lookup" do
+      artifact = %Takeaway.Speeches.Artifact{id: 99, speech_id: "speech_99"}
+
+      segment = %Takeaway.Speeches.TranscriptSegment{
+        id: 1,
+        artifact_id: 99,
+        artifact: artifact,
+        text: "Direct speech ID resolution test",
+        start_ms: 0,
+        end_ms: 1000
+      }
+
+      assert :ok = Indexer.index_segment(segment)
+    end
   end
 end
