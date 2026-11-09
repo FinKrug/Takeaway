@@ -7,6 +7,14 @@ metadata:
 spec:
   # One pod: the k3d cluster shares a server with production apps.
   replicas: 1
+  # deploy/ rolls with maxSurge 0 / maxUnavailable 1 to fit the hackathon CPU
+  # quota. With one replica that stops the only pod before its replacement is
+  # ready (502s on take-away.dev during every deploy). This cluster has no
+  # quota: start the new pod first and keep the old one until it's ready.
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     spec:
       containers:
