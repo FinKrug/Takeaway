@@ -1,8 +1,8 @@
 defmodule TakeawayWeb.SpeechLive.Show do
-  @moduledoc "Speaker's speech page: Start Speech button, join link/code, leaderboard placeholder."
+  @moduledoc "Speaker's speech page with live question groups and transcript."
   use TakeawayWeb, :live_view
 
-  alias Takeaway.{Speeches, SpeechCreator, Summaries, Transcripts}
+  alias Takeaway.{Speeches, SpeechCreator, Summaries, Transcripts, Questions}
   alias TakeawayWeb.SpeakerLive
 
   @impl true
@@ -20,6 +20,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
         if connected?(socket) do
           SpeechCreator.subscribe(speech.id)
           Transcripts.subscribe(speech.id)
+          Questions.subscribe(speech.id)
         end
 
         {:ok,
@@ -30,6 +31,7 @@ defmodule TakeawayWeb.SpeechLive.Show do
          |> assign(:summary, nil)
          |> assign(:summary_locked, false)
          |> stream(:segments, initial_segments(speech))
+         |> refresh_groups()
          |> load_summary()}
     end
   end
@@ -100,6 +102,22 @@ defmodule TakeawayWeb.SpeechLive.Show do
 
   def handle_info({:transcript_segment, seg}, socket),
     do: {:noreply, stream_insert(socket, :segments, seg)}
+
+  def handle_info({event, _}, socket)
+      when event in [
+             :question_created,
+             :question_retracted,
+             :question_groups_updated,
+             :question_answered
+           ] do
+    {:noreply, refresh_groups(socket)}
+  end
+
+  defp refresh_groups(socket) do
+    stream(socket, :question_groups, Questions.list_top_groups(socket.assigns.speech.id),
+      reset: true
+    )
+  end
 
   @impl true
   def render(assigns) do
@@ -279,13 +297,27 @@ defmodule TakeawayWeb.SpeechLive.Show do
         id="live-panels"
         class="grid grid-cols-1 gap-4 lg:grid-cols-2"
       >
-        <.empty_state
-          id="leaderboard-panel"
-          icon="hero-chat-bubble-left-right"
-          title="Live question leaderboard"
-        >
-          Questions from attendees will appear here.
-        </.empty_state>
+        <.card id="leaderboard-panel" title="Live question leaderboard">
+          <p class="mb-3 text-sm text-muted">
+            Similar questions are grouped. Most asked comes first.
+          </p>
+
+          <div id="question-leaderboard" phx-update="stream" class="space-y-3">
+            <p id="leaderboard-empty" class="hidden only:block text-sm text-muted">
+              Questions from attendees will appear here.
+            </p>
+
+            <div
+              :for={{id, group} <- @streams.question_groups}
+              id={id}
+              class="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 motion-safe:animate-enter"
+            >
+              <.badge tone="brand" class="shrink-0 tabular-nums">{group.count}</.badge>
+
+              <p class="min-w-0 break-words text-sm font-medium text-ink">{group.text}</p>
+            </div>
+          </div>
+        </.card>
 
         <.card id="transcript-panel" title="Live transcript">
           <SpeakerLive.transcript_list

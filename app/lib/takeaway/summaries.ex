@@ -87,6 +87,10 @@ defmodule Takeaway.Summaries do
   # -- generation -------------------------------------------------------------
 
   defp generate_speaker(speech) do
+    if Application.get_env(:takeaway, :question_grouping, true) do
+      Takeaway.Questions.Grouping.assign_pending(speech.id)
+    end
+
     segments = Transcripts.list_segments(speech.id)
     questions = Questions.list_questions(speech.id)
     transcript = transcript_text(segments)

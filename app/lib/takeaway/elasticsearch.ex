@@ -88,7 +88,15 @@ defmodule Takeaway.Elasticsearch do
         headers
       end
 
-    Req.new(base_url: url, headers: headers)
+    Req.new(
+      base_url: url,
+      headers: headers,
+      connect_options: [timeout: 5_000],
+      receive_timeout: 5_000,
+      request_timeout: 5_000,
+      retry: false
+    )
+    |> Req.merge(Keyword.get(config, :request_options, []))
   end
 
   @doc """
@@ -155,7 +163,10 @@ defmodule Takeaway.Elasticsearch do
     Enum.reduce_while(@indices, :ok, fn {index_name, schema}, :ok ->
       case Req.head(client(), url: "/#{index_name}") do
         {:ok, %{status: 200}} ->
-          {:cont, :ok}
+          case validate_mapping(index_name, schema) do
+            :ok -> {:cont, :ok}
+            error -> {:halt, error}
+          end
 
         {:ok, %{status: 404}} ->
           Logger.info("[Elasticsearch] Creating index: #{index_name}")
@@ -172,6 +183,28 @@ defmodule Takeaway.Elasticsearch do
           {:halt, {:error, reason}}
       end
     end)
+  end
+
+  # Existing indices are not silently accepted when their field types drift.
+  # Rebuilding a derived index is an explicit operator decision.
+  defp validate_mapping(index_name, schema) do
+    case Req.get(client(), url: "/#{index_name}/_mapping") do
+      {:ok, %{status: 200, body: body}} ->
+        actual = get_in(body, [index_name, "mappings", "properties"]) || %{}
+
+        mismatched =
+          Enum.flat_map(schema.mappings.properties, fn {field, expected} ->
+            if get_in(actual, [to_string(field), "type"]) == expected.type, do: [], else: [field]
+          end)
+
+        if mismatched == [], do: :ok, else: {:error, {:mapping_drift, index_name, mismatched}}
+
+      {:ok, %{status: status}} ->
+        {:error, {:mapping_status, index_name, status}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   @doc """
@@ -268,8 +301,11 @@ defmodule Takeaway.Elasticsearch do
   @doc """
   Executes a search query against an index.
   """
-  def search(index_name, query_body) do
-    case Req.post(client(), url: "/#{index_name}/_search", json: query_body) do
+  def search(index_name, query_body, opts \\ []) do
+    case Req.post(
+           client(),
+           Keyword.merge([url: "/#{index_name}/_search", json: query_body], opts)
+         ) do
       {:ok, %{status: 200, body: %{"hits" => hits}}} ->
         {:ok, hits}
 
@@ -320,6 +356,7 @@ defmodule Takeaway.Elasticsearch do
     index = Keyword.get(opts, :index, @questions_index)
 
     query = %{
+      size: 20,
       query: %{
         bool: %{
           must: [
@@ -344,6 +381,7 @@ defmodule Takeaway.Elasticsearch do
     min_doc_freq = Keyword.get(opts, :min_doc_freq, 1)
 
     query = %{
+      size: 20,
       query: %{
         bool: %{
           must: [
@@ -351,6 +389,7 @@ defmodule Takeaway.Elasticsearch do
               more_like_this: %{
                 fields: ["text"],
                 like: text,
+                minimum_should_match: "70%",
                 min_term_freq: min_term_freq,
                 min_doc_freq: min_doc_freq
               }
@@ -363,7 +402,12 @@ defmodule Takeaway.Elasticsearch do
       }
     }
 
-    search(@questions_index, query)
+    search(Keyword.get(opts, :index, @questions_index), query,
+      connect_options: [timeout: 200],
+      receive_timeout: 200,
+      request_timeout: 250,
+      retry: false
+    )
   end
 
   # =========================================================================

@@ -85,6 +85,48 @@ defmodule TakeawayWeb.SpeechLiveTest do
     assert html =~ "can&#39;t be blank"
   end
 
+  test "leaderboard shows groups live and removes retracted questions", %{
+    conn: conn,
+    organizer: organizer
+  } do
+    {:ok, speech} =
+      SpeechCreator.create_speech(%{"title" => "Questions"}, [], organizer: organizer)
+
+    {:ok, speech} = SpeechCreator.start_speech(speech)
+    {:ok, user} = Takeaway.Accounts.create_anonymous_attendee()
+    {:ok, lv, _} = live(conn, ~p"/speeches/#{speech.join_code}")
+
+    {:ok, a} =
+      Takeaway.Questions.submit_question(speech, user, %{
+        text: "How does distributed consensus work?"
+      })
+
+    assert has_element?(lv, "#question-leaderboard", a.text)
+
+    {:ok, b} =
+      Takeaway.Questions.submit_question(speech, user, %{
+        text: "Explain distributed consensus work?"
+      })
+
+    {:ok, _} = Takeaway.Questions.assign_group(a, 900)
+    {:ok, _} = Takeaway.Questions.assign_group(b, 900)
+
+    Phoenix.PubSub.broadcast(
+      Takeaway.PubSub,
+      Takeaway.Questions.topic(speech.id),
+      {:question_groups_updated, speech.id}
+    )
+
+    assert has_element?(lv, "#question_groups-group-900", a.text)
+    assert has_element?(lv, "#question_groups-group-900", "2")
+    refute has_element?(lv, "#question_groups-question-#{a.id}")
+    {:ok, _} = Takeaway.Questions.retract_question_by(a.id, user)
+    assert has_element?(lv, "#question_groups-group-900", b.text)
+    assert has_element?(lv, "#question_groups-group-900", "1")
+    {:ok, _} = Takeaway.Questions.retract_question_by(b.id, user)
+    refute has_element?(lv, "#question_groups-group-900")
+  end
+
   test "join page reflects start over PubSub", %{conn: conn} do
     {:ok, speech} = SpeechCreator.create_speech(%{"title" => "T"})
     {:ok, lv, html} = live(conn, ~p"/join/#{speech.join_code}")

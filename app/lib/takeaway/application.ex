@@ -21,6 +21,7 @@ defmodule Takeaway.Application do
       {Phoenix.PubSub, name: Takeaway.PubSub},
       Takeaway.Elasticsearch.ClusterSetup,
       Takeaway.Elasticsearch.QuestionSync,
+      Takeaway.Questions.GroupWorker,
       # Start a worker by calling: Takeaway.Worker.start_link(arg)
       # {Takeaway.Worker, arg},
       # Start to serve requests, typically the last entry
