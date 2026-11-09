@@ -82,6 +82,30 @@ defmodule Takeaway.Questions do
     end
   end
 
+  @question_starters ~w(who what when where why how which whose whom is are am was were do does did
+                        can could will would shall should may might have has had isn't aren't
+                        don't doesn't didn't can't won't wouldn't shouldn't)
+
+  @doc """
+  Heuristic: does `text` look like an audience question? True when the text passes
+  `filter_text/1` and either ends with `?` or starts with an interrogative word.
+  """
+  def question?(text) when is_binary(text) do
+    text = String.trim(text)
+
+    text != "" and match?({:ok, _}, filter_text(text)) and
+      (String.ends_with?(text, "?") or starts_with_interrogative?(text))
+  end
+
+  def question?(_), do: false
+
+  defp starts_with_interrogative?(text) do
+    case text |> String.downcase() |> String.split(~r/[\s,]+/, parts: 2) do
+      [first, _rest] -> first in @question_starters
+      _ -> false
+    end
+  end
+
   defp offset_ms(%Speech{started_at: nil}, _now), do: 0
 
   defp offset_ms(%Speech{started_at: started}, now),
