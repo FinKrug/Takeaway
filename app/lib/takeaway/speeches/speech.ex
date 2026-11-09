@@ -43,4 +43,12 @@ defmodule Takeaway.Speeches.Speech do
     |> assoc_constraint(:event)
     |> assoc_constraint(:speaker)
   end
+
+  @doc """
+  Where the speech is in its life: `:live` (started, not ended), `:ended` or `:upcoming`
+  (not started yet).
+  """
+  def status(%__MODULE__{ended_at: %DateTime{}}), do: :ended
+  def status(%__MODULE__{started_at: %DateTime{}}), do: :live
+  def status(%__MODULE__{}), do: :upcoming
 end

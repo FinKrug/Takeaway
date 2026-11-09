@@ -102,6 +102,17 @@ defmodule TakeawayWeb.UserControllerTest do
   end
 
   describe "login and logout" do
+    test "logging out preserves an organizer session", %{conn: conn} do
+      conn =
+        conn
+        |> init_test_session(%{"user_id" => 1, "organizer_id" => 2})
+        |> delete(~p"/users/log_out")
+
+      assert redirected_to(conn) == ~p"/"
+      refute get_session(conn, :user_id)
+      assert get_session(conn, :organizer_id) == 2
+    end
+
     test "an attendee logs in to the account page, then logs out", %{conn: conn} do
       user = user_fixture(%{email: "me@example.com", password: "password1"})
 

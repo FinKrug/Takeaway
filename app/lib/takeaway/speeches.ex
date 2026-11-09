@@ -8,6 +8,21 @@ defmodule Takeaway.Speeches do
     Repo.all(from s in Speech, where: s.event_id == ^event_id, order_by: [asc: s.id])
   end
 
+  @doc """
+  Every speech an organizer runs: the ones they own and the ones in their conferences
+  (events). Conference and speaker are preloaded.
+  """
+  def list_speeches_for_organizer(%Takeaway.Organizers.Organizer{id: id}) do
+    owned_events = from e in Takeaway.Events.Event, where: e.organizer_id == ^id, select: e.id
+
+    Repo.all(
+      from s in Speech,
+        where: s.organizer_id == ^id or s.event_id in subquery(owned_events),
+        order_by: [desc: s.id],
+        preload: [:event, :speaker]
+    )
+  end
+
   def get_speech(id), do: Repo.get(Speech, id)
   def get_speech!(id), do: Repo.get!(Speech, id)
   def get_speech_by_join_code(code), do: Repo.get_by(Speech, join_code: String.upcase(code))

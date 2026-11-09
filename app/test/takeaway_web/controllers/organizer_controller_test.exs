@@ -16,6 +16,17 @@ defmodule TakeawayWeb.OrganizerControllerTest do
     assert html_response(conn, 200) =~ "must be a valid email"
   end
 
+  test "logging out preserves a user session", %{conn: conn} do
+    conn =
+      conn
+      |> init_test_session(%{"user_id" => 1, "organizer_id" => 2})
+      |> delete(~p"/organizers/log_out")
+
+    assert redirected_to(conn) == ~p"/"
+    assert get_session(conn, :user_id) == 1
+    refute get_session(conn, :organizer_id)
+  end
+
   test "login with the right password, then logout", %{conn: conn} do
     organizer = organizer_fixture(%{email: "me@example.com", password: "password1"})
 
