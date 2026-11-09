@@ -407,6 +407,9 @@ defmodule TakeawayWeb.JoinLiveTest do
     assert has_element?(lv, "[role=tablist]")
     assert has_element?(lv, "#tab-notes[role=tab][aria-selected=true][aria-controls=panel-notes]")
     assert has_element?(lv, "#tab-questions[role=tab][aria-selected=false]")
+    assert has_element?(lv, "#tab-notes[tabindex='0']")
+    assert has_element?(lv, "#tab-questions[tabindex='-1']")
+    assert has_element?(lv, "#attendee-tablist[phx-hook=TabList]")
     assert has_element?(lv, "#panel-notes[role=tabpanel]")
     assert has_element?(lv, "#panel-questions[role=tabpanel]")
   end

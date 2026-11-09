@@ -26,10 +26,30 @@ import {hooks as colocatedHooks} from "phoenix-colocated/takeaway"
 import topbar from "../vendor/topbar"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+// WAI-ARIA tablist: arrow keys, Home and End move between tabs (roving tabindex).
+const TabList = {
+  mounted() {
+    this.el.addEventListener("keydown", (e) => {
+      const tabs = Array.from(this.el.querySelectorAll("[role=tab]"))
+      const i = tabs.indexOf(document.activeElement)
+      if (i < 0) return
+      let next = null
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") next = tabs[(i + 1) % tabs.length]
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = tabs[(i - 1 + tabs.length) % tabs.length]
+      else if (e.key === "Home") next = tabs[0]
+      else if (e.key === "End") next = tabs[tabs.length - 1]
+      if (!next) return
+      e.preventDefault()
+      next.click()
+      next.focus()
+    })
+  },
+}
+
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, TabList},
 })
 
 // Show progress bar on live navigation and form submits

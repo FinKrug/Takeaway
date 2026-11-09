@@ -142,6 +142,11 @@
     outline: 2px solid var(--tk-brand);
     outline-offset: 2px;
   }
+
+  /* WCAG 2.4.11: focused elements must not hide under the sticky header. */
+  html {
+    scroll-padding-top: 5rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
