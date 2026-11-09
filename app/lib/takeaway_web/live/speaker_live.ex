@@ -61,6 +61,26 @@ defmodule TakeawayWeb.SpeakerLive do
     "#{String.pad_leading("#{div(s, 60)}", 2, "0")}:#{String.pad_leading("#{rem(s, 60)}", 2, "0")}"
   end
 
+  attr :id, :string, required: true
+  attr :segments, :any, required: true, doc: "the :segments LiveView stream"
+  attr :class, :string, default: nil
+  slot :empty, doc: "shown only while the stream has no segments"
+
+  @doc "Renders transcript segments from a LiveView stream."
+  def transcript_list(assigns) do
+    ~H"""
+    <ol id={@id} phx-update="stream" class={["space-y-1", @class]}>
+      <li :if={@empty != []} id={"#{@id}-empty"} class="hidden only:block opacity-70">
+        {render_slot(@empty)}
+      </li>
+      <li :for={{dom_id, seg} <- @segments} id={dom_id}>
+        <span class="font-mono text-xs opacity-60">{format_ms(seg.start_ms)}</span>
+        {seg.text}
+      </li>
+    </ol>
+    """
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -75,12 +95,7 @@ defmodule TakeawayWeb.SpeakerLive do
       </div>
       <section>
         <h2 class="text-lg font-semibold">Live transcript</h2>
-        <ol id="transcript" phx-update="stream" class="space-y-1">
-          <li :for={{dom_id, seg} <- @streams.segments} id={dom_id}>
-            <span class="font-mono text-xs opacity-60">{format_ms(seg.start_ms)}</span>
-            {seg.text}
-          </li>
-        </ol>
+        <.transcript_list id="transcript" segments={@streams.segments} />
       </section>
     </main>
 

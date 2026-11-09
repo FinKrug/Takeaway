@@ -2,7 +2,8 @@ defmodule TakeawayWeb.SpeechLive.Show do
   @moduledoc "Speaker's speech page: Start Speech button, join link/code, leaderboard placeholder."
   use TakeawayWeb, :live_view
 
-  alias Takeaway.{Speeches, SpeechCreator, Summaries}
+  alias Takeaway.{Speeches, SpeechCreator, Summaries, Transcripts}
+  alias TakeawayWeb.SpeakerLive
 
   @impl true
   def mount(%{"code" => code}, _session, socket) do
@@ -16,7 +17,10 @@ defmodule TakeawayWeb.SpeechLive.Show do
          socket |> put_flash(:error, "Speech not found") |> push_navigate(to: ~p"/speeches/new")}
 
       speech ->
-        if connected?(socket), do: SpeechCreator.subscribe(speech.id)
+        if connected?(socket) do
+          SpeechCreator.subscribe(speech.id)
+          Transcripts.subscribe(speech.id)
+        end
 
         {:ok,
          socket
@@ -25,9 +29,16 @@ defmodule TakeawayWeb.SpeechLive.Show do
          |> assign(:artifacts, Speeches.list_artifacts(speech.id))
          |> assign(:summary, nil)
          |> assign(:summary_locked, false)
+         |> stream(:segments, initial_segments(speech))
          |> load_summary()}
     end
   end
+
+  # Render from started_at on load, not only from the broadcast.
+  defp initial_segments(%{started_at: %DateTime{}} = speech),
+    do: Transcripts.list_segments(speech.id)
+
+  defp initial_segments(_speech), do: []
 
   # Generates (once) or loads the cached speaker summary after the speech ended.
   defp load_summary(%{assigns: %{speech: %{ended_at: %DateTime{} = _}}} = socket) do
@@ -86,6 +97,9 @@ defmodule TakeawayWeb.SpeechLive.Show do
   def handle_info({:speech_started, speech}, socket) do
     {:noreply, assign(socket, :speech, speech)}
   end
+
+  def handle_info({:transcript_segment, seg}, socket),
+    do: {:noreply, stream_insert(socket, :segments, seg)}
 
   @impl true
   def render(assigns) do
@@ -192,11 +206,26 @@ defmodule TakeawayWeb.SpeechLive.Show do
 
         <div
           :if={@speech.started_at && is_nil(@speech.ended_at)}
-          id="leaderboard-panel"
-          class="card border border-dashed p-4"
+          id="live-panels"
+          class="grid grid-cols-1 gap-4 lg:grid-cols-2"
         >
-          <h2 class="font-semibold">Live question leaderboard</h2>
-          <p class="text-sm opacity-70">Questions from attendees will appear here.</p>
+          <div id="leaderboard-panel" class="card border border-dashed p-4">
+            <h2 class="font-semibold">Live question leaderboard</h2>
+            <p class="text-sm opacity-70">Questions from attendees will appear here.</p>
+          </div>
+
+          <div id="transcript-panel" class="card border border-dashed p-4">
+            <h2 class="font-semibold">Live transcript</h2>
+            <SpeakerLive.transcript_list
+              id="panel-transcript"
+              segments={@streams.segments}
+              class="max-h-80 overflow-y-auto text-sm"
+            >
+              <:empty>
+                The transcript will appear here once the speaker starts talking.
+              </:empty>
+            </SpeakerLive.transcript_list>
+          </div>
         </div>
       </div>
     </Layouts.app>

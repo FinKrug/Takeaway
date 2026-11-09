@@ -29,6 +29,7 @@ defmodule TakeawayWeb.SpeechLiveTest do
     assert html =~ "My Talk"
     assert html =~ "Start Speech"
     refute html =~ "leaderboard-panel"
+    refute html =~ "transcript-panel"
 
     [speech] = Takeaway.Repo.all(Takeaway.Speeches.Speech)
     assert speech.tags == ["elixir", "liveview"]
@@ -43,9 +44,32 @@ defmodule TakeawayWeb.SpeechLiveTest do
     SpeechCreator.subscribe(speech.id)
     html = show |> element("#start-speech") |> render_click()
     assert html =~ "leaderboard-panel"
+    assert html =~ "transcript-panel"
+    assert html =~ "panel-transcript-empty"
     refute html =~ "id=\"start-speech\""
     assert_receive {:speech_started, %{started_at: %DateTime{}}}
     assert Speeches.get_speech!(speech.id).started_at
+  end
+
+  test "dashboard panels render from started_at and vanish at end", %{conn: conn} = ctx do
+    {:ok, speech} =
+      SpeechCreator.create_speech(%{"title" => "Live"}, [], organizer: ctx.organizer)
+
+    {:ok, speech} = SpeechCreator.start_speech(speech)
+
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(speech.id, [
+        %{text: "earlier words", start_ms: 0, end_ms: 1000}
+      ])
+
+    {:ok, lv, html} = live(conn, ~p"/speeches/#{speech.join_code}")
+    assert has_element?(lv, "#leaderboard-panel")
+    assert has_element?(lv, "#transcript-panel")
+    assert html =~ "earlier words"
+
+    {:ok, _} = SpeechCreator.end_speech(speech)
+    refute has_element?(lv, "#leaderboard-panel")
+    refute has_element?(lv, "#transcript-panel")
   end
 
   test "title is required", %{conn: conn} do
