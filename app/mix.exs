@@ -82,6 +82,7 @@ defmodule Takeaway.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
+      {:req, "~> 0.5"}
       # OpenTelemetry: traces for Bandit requests, Phoenix routes/LiveViews and
       # Ecto queries, exported over OTLP to Dash0 (config/runtime.exs).
       {:opentelemetry, "~> 1.7"},

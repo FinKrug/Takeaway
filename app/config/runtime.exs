@@ -23,6 +23,13 @@ end
 config :takeaway, TakeawayWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+elasticsearch_url = System.get_env("ELASTICSEARCH_URL", "http://localhost:9200")
+elasticsearch_api_key = System.get_env("ELASTICSEARCH_API_KEY")
+
+config :takeaway, :elasticsearch,
+  url: elasticsearch_url,
+  api_key: elasticsearch_api_key
+
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
   config :takeaway, TakeawayWeb.Endpoint,
