@@ -60,6 +60,29 @@ if anthropic_key = System.get_env("ANTHROPIC_API_KEY") do
     model: System.get_env("ANTHROPIC_MODEL") || "claude-sonnet-4-5"
 end
 
+# Traces to Dash0 over OTLP/HTTP. Off unless DASH0_AUTH_TOKEN is set (key
+# dash0-auth-token in Secret app-credentials, created outside git: the repo is
+# public), so the app starts and runs the same with or without it.
+if dash0_token = System.get_env("DASH0_AUTH_TOKEN") do
+  config :opentelemetry,
+    traces_exporter: :otlp,
+    resource: %{
+      service: %{
+        name: System.get_env("OTEL_SERVICE_NAME", "takeaway"),
+        version: System.get_env("APP_VERSION", "dev")
+      }
+    }
+
+  config :opentelemetry_exporter,
+    otlp_protocol: :http_protobuf,
+    otlp_endpoint:
+      System.get_env("DASH0_OTLP_ENDPOINT", "https://ingress.us-east-1.aws.dash0.com"),
+    otlp_headers: [
+      {"Authorization", "Bearer " <> dash0_token},
+      {"Dash0-Dataset", System.get_env("DASH0_DATASET", "default")}
+    ]
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

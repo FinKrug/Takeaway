@@ -57,6 +57,14 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# OpenTelemetry. Nothing is exported unless config/runtime.exs switches the
+# OTLP exporter on (DASH0_AUTH_TOKEN set). Kubernetes probe requests are never
+# traced (Takeaway.OtelSampler).
+config :opentelemetry,
+  traces_exporter: :none,
+  sampler: {:parent_based, %{root: {Takeaway.OtelSampler, %{}}}},
+  resource: %{service: %{name: "takeaway"}}
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
