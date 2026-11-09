@@ -107,4 +107,40 @@ defmodule Takeaway.QuestionsTest do
     assert {:ok, _} = Questions.retract_question_by(q.id, u)
     refute_receive {:question_retracted, _}
   end
+
+  test "typed questions default to source typed and need a user", %{speech: s, user: u} do
+    {:ok, q} = Questions.submit_question(s, u, %{"text" => "Why?"})
+    assert q.source == "typed"
+
+    assert {:error, cs} = Questions.create_question(%{text: "x", speech_id: s.id})
+    assert %{user_id: ["can't be blank"]} = errors_on(cs)
+
+    assert {:error, cs} =
+             Questions.create_question(%{
+               text: "x",
+               speech_id: s.id,
+               user_id: u.id,
+               source: "bogus"
+             })
+
+    assert %{source: [_]} = errors_on(cs)
+  end
+
+  test "create_verbal_questions makes verbal questions from question segments, idempotently",
+       %{speech: s} do
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Welcome all", start_ms: 0, end_ms: 500},
+        %{text: "Does it scale?", start_ms: 500, end_ms: 900}
+      ])
+
+    assert {:ok, [q]} = Questions.create_verbal_questions(s.id)
+    assert {q.text, q.source, q.offset_ms, q.user_id} == {"Does it scale?", "verbal", 500, nil}
+    assert q.transcript_segment_id
+    assert_receive {:question_created, %{id: id}}
+    assert id == q.id
+
+    assert {:ok, []} = Questions.create_verbal_questions(s.id)
+    assert [%{source: "verbal"}] = Questions.list_questions(s.id)
+  end
 end
