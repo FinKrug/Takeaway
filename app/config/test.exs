@@ -9,6 +9,7 @@ config :takeaway, Takeaway.Repo,
   username: "postgres",
   password: "postgres",
   hostname: "localhost",
+  port: String.to_integer(System.get_env("PGPORT", "5432")),
   database: "takeaway_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
@@ -40,5 +41,8 @@ config :phoenix_live_view,
 config :phoenix,
   sort_verified_routes_query_params: true
 
-# Disable automatic background index bootstrapper during tests
-config :takeaway, :elasticsearch, auto_setup: false
+# Disable automatic background index bootstrapper and question sync, and use Noop indexer during tests
+config :takeaway, :elasticsearch, auto_setup: false, auto_sync: false
+
+config :takeaway, :indexer, Takeaway.Indexer.Noop
+config :takeaway, :question_grouping, false

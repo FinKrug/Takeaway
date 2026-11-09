@@ -18,10 +18,37 @@ defmodule Takeaway.Questions do
       else: Repo.all(where(query, [q], is_nil(q.retracted_at)))
   end
 
+  @doc "Ranked active question groups, including singleton questions awaiting grouping."
+  def list_top_groups(speech_id, opts \\ []) do
+    speech_id
+    |> list_questions()
+    |> Enum.group_by(fn q ->
+      if q.group_id, do: "group-#{q.group_id}", else: "question-#{q.id}"
+    end)
+    |> Enum.map(fn {id, questions} ->
+      first = Enum.min_by(questions, & &1.id)
+
+      %{
+        id: id,
+        text: first.text,
+        count: length(questions),
+        questions: Enum.map(questions, & &1.text)
+      }
+    end)
+    |> Enum.sort_by(&{-&1.count, &1.text, &1.id})
+    |> Enum.take(Keyword.get(opts, :limit, 10))
+  end
+
   @doc "PubSub topic for a speech's question events."
   def topic(speech_id), do: "speech:#{speech_id}:questions"
 
+  @doc "Global PubSub topic for all question events across speeches."
+  def global_topic, do: "questions:all"
+
   def subscribe(speech_id), do: Phoenix.PubSub.subscribe(Takeaway.PubSub, topic(speech_id))
+
+  @doc "Subscribes to global question events across all speeches."
+  def subscribe_global, do: Phoenix.PubSub.subscribe(Takeaway.PubSub, global_topic())
 
   @doc """
   Submits a question from `user` to `speech`, stamped with the offset from the speech start
@@ -201,8 +228,10 @@ defmodule Takeaway.Questions do
   defp offset_ms(%Speech{started_at: started}, now),
     do: max(DateTime.diff(now, started, :millisecond), 0)
 
-  defp broadcast(speech_id, msg),
-    do: Phoenix.PubSub.broadcast(Takeaway.PubSub, topic(speech_id), msg)
+  defp broadcast(speech_id, msg) do
+    Phoenix.PubSub.broadcast(Takeaway.PubSub, topic(speech_id), msg)
+    Phoenix.PubSub.broadcast(Takeaway.PubSub, global_topic(), msg)
+  end
 
   def get_question(id), do: Repo.get(Question, id)
   def get_question!(id), do: Repo.get!(Question, id)

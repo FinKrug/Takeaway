@@ -5,6 +5,14 @@ defmodule TakeawayWeb.SummaryLiveTest do
 
   alias Takeaway.{Accounts, Notes, Questions, SpeechCreator, Summaries}
 
+  # A cookieless test conn gets the attendee cookie-check redirect first; follow it.
+  defp live_join(conn, path) do
+    case live(conn, path) do
+      {:error, {:redirect, %{to: to}}} -> live(conn, to)
+      other -> other
+    end
+  end
+
   setup %{conn: conn} do
     organizer = organizer_fixture()
     Application.put_env(:takeaway, :llm, Takeaway.FakeLLM)
@@ -82,7 +90,7 @@ defmodule TakeawayWeb.SummaryLiveTest do
 
   test "speaker summary is not shown to attendees", %{conn: conn, speech: speech} do
     {:ok, _} = SpeechCreator.end_speech(speech)
-    {:ok, _lv, html} = live(conn, ~p"/join/#{speech.join_code}")
+    {:ok, _lv, html} = live_join(conn, ~p"/join/#{speech.join_code}")
     assert html =~ "The speech has ended"
     refute html =~ "speaker-summary"
   end
