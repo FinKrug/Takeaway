@@ -2,7 +2,7 @@ defmodule TakeawayWeb.SpeechLiveTest do
   use TakeawayWeb.ConnCase, async: true
   import Phoenix.LiveViewTest
 
-  alias Takeaway.{Speeches, SpeechCreator}
+  alias Takeaway.{Speeches, SpeechCreator, Tickets}
 
   test "creates a speech with uploads and tags, then starts it", %{conn: conn} do
     {:ok, lv, _} = live(conn, ~p"/speeches/new")
@@ -60,6 +60,43 @@ defmodule TakeawayWeb.SpeechLiveTest do
   test "unknown join code", %{conn: conn} do
     {:ok, _lv, html} = live(conn, ~p"/join/NOPE00")
     assert html =~ "No speech found"
+  end
+
+  describe "ticket gate on join" do
+    setup do
+      {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Gated"})
+      event = Takeaway.Events.get_event!(speech.event_id)
+      {:ok, ticket} = Tickets.create_ticket(event)
+      %{speech: speech, ticket: ticket}
+    end
+
+    test "events without tickets still open freely", %{conn: conn} do
+      {:ok, other} = Takeaway.Events.create_event(%{name: "Free"})
+      {:ok, speech} = Speeches.create_speech(%{title: "Open", event_id: other.id})
+      {:ok, _lv, html} = live(conn, ~p"/join/#{speech.join_code}")
+      assert html =~ "Waiting"
+    end
+
+    test "missing ticket is gated", %{conn: conn, speech: speech} do
+      {:ok, _lv, html} = live(conn, ~p"/join/#{speech.join_code}")
+      assert html =~ "join-ticket-required"
+      refute html =~ "Waiting"
+      refute html =~ "Gated"
+    end
+
+    test "invalid ticket is gated", %{conn: conn, speech: speech} do
+      {:ok, _lv, html} = live(conn, ~p"/join/#{speech.join_code}?ticket=BOGUS000")
+      assert html =~ "join-ticket-invalid"
+      refute html =~ "Waiting"
+    end
+
+    test "valid ticket (any case) opens the page", %{conn: conn, speech: speech, ticket: t} do
+      {:ok, _lv, html} =
+        live(conn, ~p"/join/#{speech.join_code}?ticket=#{String.downcase(t.code)}")
+
+      assert html =~ "Waiting"
+      refute html =~ "join-ticket"
+    end
   end
 
   test "artifact download", %{conn: conn} do

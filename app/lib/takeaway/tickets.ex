@@ -68,6 +68,23 @@ defmodule Takeaway.Tickets do
     Repo.one(from t in Ticket, where: t.event_id == ^event_id and t.code == ^String.upcase(code))
   end
 
+  @doc "True when the event has issued any tickets (so attendees must present one)."
+  def event_uses_tickets?(event_id),
+    do: Repo.exists?(from t in Ticket, where: t.event_id == ^event_id)
+
+  @doc """
+  Checks `code` against the event's tickets. Events without tickets always pass.
+  Returns `:ok`, `{:error, :ticket_required}` or `{:error, :invalid_ticket}`.
+  """
+  def validate_for_event(event_id, code) do
+    cond do
+      not event_uses_tickets?(event_id) -> :ok
+      not is_binary(code) or String.trim(code) == "" -> {:error, :ticket_required}
+      get_ticket_by_code(event_id, String.trim(code)) -> :ok
+      true -> {:error, :invalid_ticket}
+    end
+  end
+
   def list_tickets(event_id) do
     Repo.all(from t in Ticket, where: t.event_id == ^event_id, order_by: t.id)
   end
