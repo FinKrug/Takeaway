@@ -31,6 +31,11 @@ defmodule Takeaway.Transcripts do
     end
   end
 
+  @doc "Transcript segments of a speech that look like audience questions (`Questions.question?/1`)."
+  def list_question_segments(speech_id) do
+    speech_id |> list_segments() |> Enum.filter(&Takeaway.Questions.question?(&1.text))
+  end
+
   @doc """
   Transcribe one audio chunk that began `offset_ms` after the speech's start.
   Returns `{:ok, persisted_segments}`.
@@ -61,7 +66,8 @@ defmodule Takeaway.Transcripts do
       artifact_id: artifact.id,
       text: seg.text,
       start_ms: seg.start_ms + offset_ms,
-      end_ms: seg.end_ms + offset_ms
+      end_ms: seg.end_ms + offset_ms,
+      speaker: Map.get(seg, :speaker)
     })
   end
 end
