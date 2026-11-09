@@ -31,6 +31,7 @@
   --color-surface: var(--tk-surface);
   --color-sunken: var(--tk-sunken);
   --color-line: var(--tk-line);
+  --color-control: var(--tk-control);
   --color-ink: var(--tk-ink);
   --color-muted: var(--tk-muted);
 
@@ -77,19 +78,20 @@
   --tk-surface: oklch(100% 0 0);
   --tk-sunken: oklch(96.4% 0.006 75);
   --tk-line: oklch(91.5% 0.008 75);
+  --tk-control: oklch(60% 0.012 265);
   --tk-ink: oklch(22% 0.018 265);
-  --tk-muted: oklch(52% 0.016 265);
+  --tk-muted: oklch(50% 0.016 265);
 
-  --tk-brand: oklch(64% 0.19 38);
-  --tk-brand-strong: oklch(56% 0.18 36);
+  --tk-brand: oklch(58% 0.19 38);
+  --tk-brand-strong: oklch(52% 0.18 36);
   --tk-brand-soft: oklch(95.5% 0.03 45);
   --tk-on-brand: oklch(99% 0.005 75);
 
-  --tk-success: oklch(55% 0.13 160);
+  --tk-success: oklch(48% 0.12 160);
   --tk-success-soft: oklch(95.5% 0.035 160);
-  --tk-danger: oklch(56% 0.2 25);
+  --tk-danger: oklch(52% 0.2 25);
   --tk-danger-soft: oklch(95.5% 0.03 25);
-  --tk-warning: oklch(62% 0.15 70);
+  --tk-warning: oklch(50% 0.12 70);
   --tk-warning-soft: oklch(96% 0.045 85);
 }
 
@@ -99,6 +101,7 @@
   --tk-surface: oklch(21.5% 0.014 265);
   --tk-sunken: oklch(15.5% 0.012 265);
   --tk-line: oklch(30% 0.016 265);
+  --tk-control: oklch(56% 0.016 265);
   --tk-ink: oklch(95% 0.006 265);
   --tk-muted: oklch(70% 0.014 265);
 
