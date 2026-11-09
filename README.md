@@ -21,6 +21,16 @@ Built for the [Cloud Native Hackathon](https://www.wemakedevs.org/hackathons/cnh
 
 Main code lives in `app/lib/takeaway/` (contexts: `speeches`, `questions`, `notes`, `transcripts`, `summaries`, `accounts`, `events`) and `app/lib/takeaway_web/live/` (LiveViews).
 
+### Question filtering
+
+Typed submissions must look like questions and pass a basic English profanity list
+in `Takeaway.Questions.Filter`. Whole-word checks cover case, common leetspeak and
+separated letters while allowing clean substrings such as `class`. Questions without
+`?` can pass; statements ending in `?` also pass this heuristic. Inputs are limited
+to 2,000 characters. Rejections appear inline and are never saved or broadcast.
+The existing `:question_filter` hook overrides the default. Imported verbal
+questions continue to use the transcript heuristic separately.
+
 ## Configuration
 
 | Variable | Purpose |

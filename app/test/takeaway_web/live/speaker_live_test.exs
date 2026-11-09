@@ -110,7 +110,7 @@ defmodule TakeawayWeb.SpeakerLiveTest do
           speech_id: speech.id
         })
 
-      {:ok, retracted} = Questions.submit_question(speech, attendee, %{text: "Never mind"})
+      {:ok, retracted} = Questions.submit_question(speech, attendee, %{text: "Never mind?"})
       {:ok, _} = Questions.retract_question(retracted)
 
       {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
