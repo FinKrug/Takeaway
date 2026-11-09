@@ -10,6 +10,16 @@ defmodule Takeaway.TicketsTest do
     %{e1: e1, e2: e2}
   end
 
+  test "validate_for_event/2", %{e1: e1, e2: e2} do
+    assert :ok = Tickets.validate_for_event(e1.id, nil)
+    {:ok, t} = Tickets.create_ticket(e1)
+    assert {:error, :ticket_required} = Tickets.validate_for_event(e1.id, nil)
+    assert {:error, :ticket_required} = Tickets.validate_for_event(e1.id, "  ")
+    assert {:error, :invalid_ticket} = Tickets.validate_for_event(e1.id, "NOPE")
+    assert :ok = Tickets.validate_for_event(e1.id, String.downcase(t.code))
+    assert :ok = Tickets.validate_for_event(e2.id, nil)
+  end
+
   test "generates a code", %{e1: e} do
     assert {:ok, t} = Tickets.create_ticket(e)
     assert String.length(t.code) == 8
@@ -73,5 +83,31 @@ defmodule Takeaway.TicketsTest do
 
     assert {:ok, t} = Tickets.create_ticket(e, nil, %{"code" => ""}, generate: gen)
     assert t.code == "FRESH123"
+  end
+
+  describe "bulk" do
+    test "generate_tickets creates unowned tickets", %{e1: e} do
+      assert {:ok, ts} = Tickets.generate_tickets(e, 5)
+      assert length(Enum.uniq_by(ts, & &1.code)) == 5
+      assert length(Tickets.list_tickets(e.id)) == 5
+    end
+
+    test "generate_tickets rejects bad counts", %{e1: e} do
+      assert {:error, :invalid_count} = Tickets.generate_tickets(e, 0)
+      assert {:error, :invalid_count} = Tickets.generate_tickets(e, 501)
+    end
+
+    test "import_tickets creates attendees, skips duplicates, flags invalid", %{e1: e, e2: e2} do
+      text = "email,name\nA@x.com, Ann\nb@x.com\nnot-an-email\n\na@x.com\n"
+      r = Tickets.import_tickets(e, text)
+      assert length(r.created) == 2
+      assert r.skipped == ["a@x.com"]
+      assert r.invalid == ["not-an-email"]
+      assert Enum.all?(r.created, & &1.user_id)
+
+      r2 = Tickets.import_tickets(e2, "a@x.com")
+      assert [t] = r2.created
+      assert t.user_id == hd(r.created).user_id
+    end
   end
 end

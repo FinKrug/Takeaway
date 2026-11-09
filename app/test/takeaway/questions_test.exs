@@ -107,4 +107,66 @@ defmodule Takeaway.QuestionsTest do
     assert {:ok, _} = Questions.retract_question_by(q.id, u)
     refute_receive {:question_retracted, _}
   end
+
+  test "typed questions default to source typed and need a user", %{speech: s, user: u} do
+    {:ok, q} = Questions.submit_question(s, u, %{"text" => "Why?"})
+    assert q.source == "typed"
+
+    assert {:error, cs} = Questions.create_question(%{text: "x", speech_id: s.id})
+    assert %{user_id: ["can't be blank"]} = errors_on(cs)
+
+    assert {:error, cs} =
+             Questions.create_question(%{
+               text: "x",
+               speech_id: s.id,
+               user_id: u.id,
+               source: "bogus"
+             })
+
+    assert %{source: [_]} = errors_on(cs)
+  end
+
+  test "recording a question segment creates a verbal question, idempotently", %{speech: s} do
+    {:ok, [_, seg]} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Welcome all", start_ms: 0, end_ms: 500},
+        %{text: "Does it scale?", start_ms: 500, end_ms: 900}
+      ])
+
+    assert [q] = Questions.list_questions(s.id)
+    assert {q.text, q.source, q.offset_ms, q.user_id} == {"Does it scale?", "verbal", 500, nil}
+    assert q.transcript_segment_id == seg.id
+    assert_receive {:question_created, %{id: id}}
+    assert id == q.id
+
+    assert {:ok, []} = Questions.create_verbal_questions(s.id)
+    assert [%{source: "verbal"}] = Questions.list_questions(s.id)
+  end
+
+  test "segments without a question create no questions", %{speech: s} do
+    {:ok, _} =
+      Takeaway.Transcripts.record_segments(s.id, [
+        %{text: "Welcome all", start_ms: 0, end_ms: 500}
+      ])
+
+    assert Questions.list_questions(s.id) == []
+    refute_receive {:question_created, _}
+  end
+
+  test "create_verbal_questions picks up segments saved another way", %{speech: s} do
+    {:ok, artifact} = Takeaway.Speeches.create_artifact(%{kind: "transcript", speech_id: s.id})
+
+    {:ok, _} =
+      Takeaway.Speeches.add_transcript_segment(%{
+        artifact_id: artifact.id,
+        text: "Is it open source?",
+        start_ms: 100,
+        end_ms: 400
+      })
+
+    assert {:ok, [%{source: "verbal", text: "Is it open source?"}]} =
+             Questions.create_verbal_questions(s.id)
+
+    assert {:ok, []} = Questions.create_verbal_questions(s.id)
+  end
 end

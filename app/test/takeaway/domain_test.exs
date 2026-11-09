@@ -35,6 +35,25 @@ defmodule Takeaway.DomainTest do
       assert {:error, cs} = Events.create_event(%{})
       assert "can't be blank" in errors_on(cs).name
     end
+
+    test "admin token is generated, kept on update and never cast", %{event: event} do
+      assert is_binary(event.admin_token) and String.length(event.admin_token) == 32
+
+      {:ok, updated} = Events.update_event(event, %{"name" => "New", "admin_token" => "mine"})
+      assert updated.admin_token == event.admin_token
+
+      {:ok, other} = Events.create_event(%{name: "Other", admin_token: "mine"})
+      refute other.admin_token in ["mine", event.admin_token]
+    end
+
+    test "get_event_for_admin needs the matching token", %{event: event} do
+      assert Events.get_event_for_admin(event.id, event.admin_token).id == event.id
+      assert Events.get_event_for_admin(to_string(event.id), event.admin_token).id == event.id
+      assert Events.get_event_for_admin(event.id, "wrong") == nil
+      assert Events.get_event_for_admin(event.id, nil) == nil
+      assert Events.get_event_for_admin("abc", event.admin_token) == nil
+      assert Events.get_event_for_admin(event.id + 1_000, event.admin_token) == nil
+    end
   end
 
   describe "speeches" do

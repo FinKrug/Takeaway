@@ -122,6 +122,41 @@ defmodule Takeaway.Questions do
     end
   end
 
+  @doc """
+  Creates `source: "verbal"` questions from the speech's question-like transcript segments
+  (`Takeaway.Transcripts.list_question_segments/1`). Idempotent: a segment that already has
+  a question is skipped. Broadcasts `{:question_created, question}` for each new one and
+  returns `{:ok, new_questions}`.
+  """
+  def create_verbal_questions(speech_id) do
+    existing =
+      from(q in Question,
+        where: q.speech_id == ^speech_id and not is_nil(q.transcript_segment_id),
+        select: q.transcript_segment_id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
+    created =
+      for seg <- Takeaway.Transcripts.list_question_segments(speech_id),
+          seg.id not in existing,
+          {:ok, q} <-
+            [
+              create_question(%{
+                "text" => String.trim(seg.text),
+                "offset_ms" => seg.start_ms,
+                "source" => "verbal",
+                "speech_id" => speech_id,
+                "transcript_segment_id" => seg.id
+              })
+            ] do
+        broadcast(speech_id, {:question_created, q})
+        q
+      end
+
+    {:ok, created}
+  end
+
   defp offset_ms(%Speech{started_at: nil}, _now), do: 0
 
   defp offset_ms(%Speech{started_at: started}, now),
