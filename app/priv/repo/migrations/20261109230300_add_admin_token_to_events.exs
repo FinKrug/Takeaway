@@ -10,7 +10,9 @@ defmodule Takeaway.Repo.Migrations.AddAdminTokenToEvents do
     execute "UPDATE events SET admin_token = replace(gen_random_uuid()::text, '-', '') WHERE admin_token IS NULL"
 
     alter table(:events) do
-      modify :admin_token, :string, null: false
+      modify :admin_token, :string,
+        null: false,
+        default: fragment("replace(gen_random_uuid()::text, '-', '')")
     end
 
     create unique_index(:events, [:admin_token])
