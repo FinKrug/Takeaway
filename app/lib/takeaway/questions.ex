@@ -19,7 +19,7 @@ defmodule Takeaway.Questions do
   end
 
   @doc "PubSub topic for a speech's question events."
-  def topic(speech_id), do: "speech:#{speech_id}"
+  def topic(speech_id), do: "speech:#{speech_id}:questions"
 
   def subscribe(speech_id), do: Phoenix.PubSub.subscribe(Takeaway.PubSub, topic(speech_id))
 
@@ -155,6 +155,45 @@ defmodule Takeaway.Questions do
       end
 
     {:ok, created}
+  end
+
+  @doc """
+  Marks open verbal questions as answered once the speaker responds: a later transcript
+  segment that is not itself a question (`question?/1`), starts at or after the question's
+  segment ends, and is not by the same labelled speaker as the question. Already answered
+  or retracted questions are untouched. Broadcasts `{:question_answered, question}` for each
+  and returns `{:ok, answered_questions}`.
+  """
+  def mark_answered_by_segments(speech_id, now \\ now()) do
+    segments = Takeaway.Transcripts.list_segments(speech_id)
+
+    open =
+      from(q in Question,
+        where:
+          q.speech_id == ^speech_id and q.source == "verbal" and is_nil(q.answered_at) and
+            is_nil(q.retracted_at) and not is_nil(q.transcript_segment_id)
+      )
+      |> Repo.all()
+
+    answered =
+      for q <- open,
+          seg = Enum.find(segments, &(&1.id == q.transcript_segment_id)),
+          seg != nil,
+          response?(seg, segments),
+          {:ok, q} <- [q |> Ecto.Changeset.change(answered_at: now) |> Repo.update()] do
+        broadcast(speech_id, {:question_answered, q})
+        q
+      end
+
+    {:ok, answered}
+  end
+
+  defp response?(question_seg, segments) do
+    Enum.any?(segments, fn s ->
+      s.id != question_seg.id and s.start_ms >= question_seg.end_ms and
+        not question?(s.text) and
+        not (not is_nil(s.speaker) and s.speaker == question_seg.speaker)
+    end)
   end
 
   defp offset_ms(%Speech{started_at: nil}, _now), do: 0

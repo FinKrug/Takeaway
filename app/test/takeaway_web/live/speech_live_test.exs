@@ -4,6 +4,11 @@ defmodule TakeawayWeb.SpeechLiveTest do
 
   alias Takeaway.{Speeches, SpeechCreator, Tickets}
 
+  setup %{conn: conn} do
+    organizer = organizer_fixture()
+    %{organizer: organizer, conn: log_in_organizer(conn, organizer)}
+  end
+
   test "creates a speech with uploads and tags, then starts it", %{conn: conn} do
     {:ok, lv, _} = live(conn, ~p"/speeches/new")
 
@@ -106,5 +111,37 @@ defmodule TakeawayWeb.SpeechLiveTest do
     [a] = Speeches.list_artifacts(speech.id)
     assert get(conn, ~p"/artifacts/#{a.id}").status == 200
     assert get(conn, ~p"/artifacts/0").status == 404
+  end
+
+  describe "organizer access" do
+    test "creating a speech needs a login" do
+      conn = get(Phoenix.ConnTest.build_conn(), ~p"/speeches/new")
+      assert redirected_to(conn) == ~p"/organizers/log_in"
+    end
+
+    test "the speech page shows organizer links, and only to the owner", %{
+      conn: conn,
+      organizer: organizer
+    } do
+      {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Mine"}, [], organizer: organizer)
+
+      {:ok, _lv, html} = live(conn, ~p"/speeches/#{speech.join_code}")
+      assert html =~ ~s(href="/events/#{speech.event_id}/tickets")
+      assert html =~ ~s(href="/speeches/#{speech.id}/speak")
+
+      other = log_in_organizer(Phoenix.ConnTest.build_conn(), organizer_fixture())
+
+      assert {:error, {:live_redirect, %{to: "/speeches/new"}}} =
+               live(other, ~p"/speeches/#{speech.join_code}")
+
+      anon = Phoenix.ConnTest.build_conn()
+      assert redirected_to(get(anon, ~p"/speeches/#{speech.join_code}")) == ~p"/organizers/log_in"
+    end
+
+    test "the join page stays public", %{organizer: organizer} do
+      {:ok, speech} = SpeechCreator.create_speech(%{"title" => "Mine"}, [], organizer: organizer)
+      {:ok, _lv, html} = live(Phoenix.ConnTest.build_conn(), ~p"/join/#{speech.join_code}")
+      assert html =~ "Waiting"
+    end
   end
 end

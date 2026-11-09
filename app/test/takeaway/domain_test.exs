@@ -46,13 +46,19 @@ defmodule Takeaway.DomainTest do
       refute other.admin_token in ["mine", event.admin_token]
     end
 
-    test "get_event_for_admin needs the matching token", %{event: event} do
-      assert Events.get_event_for_admin(event.id, event.admin_token).id == event.id
-      assert Events.get_event_for_admin(to_string(event.id), event.admin_token).id == event.id
-      assert Events.get_event_for_admin(event.id, "wrong") == nil
-      assert Events.get_event_for_admin(event.id, nil) == nil
-      assert Events.get_event_for_admin("abc", event.admin_token) == nil
-      assert Events.get_event_for_admin(event.id + 1_000, event.admin_token) == nil
+    test "get_event_for_organizer only returns the owner's event", %{event: event} do
+      {:ok, owner} = Takeaway.Organizers.register(%{email: "o@x.com", password: "password1"})
+      {:ok, other} = Takeaway.Organizers.register(%{email: "p@x.com", password: "password1"})
+      {:ok, event} = Takeaway.Organizers.claim_event(event, owner)
+
+      assert Events.get_event_for_organizer(event.id, owner).id == event.id
+      assert Events.get_event_for_organizer(to_string(event.id), owner).id == event.id
+      assert Events.get_event_for_organizer(event.id, other) == nil
+      assert Events.get_event_for_organizer(event.id, nil) == nil
+      assert Events.get_event_for_organizer("abc", owner) == nil
+      assert Events.get_event_for_organizer(event.id + 1_000, owner) == nil
+      assert [%{id: id}] = Events.list_events_for_organizer(owner)
+      assert id == event.id
     end
   end
 

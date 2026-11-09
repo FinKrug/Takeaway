@@ -8,7 +8,7 @@ defmodule TakeawayWeb.SpeakerLive do
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    case Speeches.get_speech(id) do
+    case owned_speech(id, socket.assigns.current_organizer) do
       nil ->
         {:ok, socket |> put_flash(:error, "Speech not found") |> redirect(to: ~p"/")}
 
@@ -19,6 +19,17 @@ defmodule TakeawayWeb.SpeakerLive do
          socket
          |> assign(speech: speech, recording: false)
          |> stream(:segments, Transcripts.list_segments(speech.id))}
+    end
+  end
+
+  # Missing and foreign speeches look the same.
+  defp owned_speech(id, organizer) do
+    with {int, ""} <- Integer.parse(to_string(id)),
+         %{} = speech <- Speeches.get_speech(int),
+         true <- Takeaway.Organizers.owns_speech?(organizer, speech) do
+      speech
+    else
+      _ -> nil
     end
   end
 

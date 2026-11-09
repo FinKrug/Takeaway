@@ -19,18 +19,25 @@ defmodule Takeaway.Release do
   end
 
   @doc """
-  Prints each event's organizer tickets link, for example:
+  Gives every event that has no owner to the organizer registered with `email`,
+  so events created before organizer accounts stay reachable. Example:
 
-      bin/takeaway rpc "Takeaway.Release.print_tickets_links()"
+      bin/takeaway rpc 'Takeaway.Release.claim_unowned_events("me@example.com")'
 
-  The links contain secret admin tokens: don't paste them anywhere public.
+  Returns `{:ok, count}` or `{:error, :organizer_not_found}`.
   """
-  def print_tickets_links do
-    for event <- Takeaway.Events.list_events() do
-      IO.puts("#{event.id}\t#{event.name}\t#{Takeaway.Events.tickets_path(event)}")
-    end
+  def claim_unowned_events(email) do
+    load_app()
 
-    :ok
+    case Takeaway.Organizers.get_organizer_by_email(email) do
+      nil ->
+        {:error, :organizer_not_found}
+
+      organizer ->
+        events = Enum.filter(Takeaway.Events.list_events(), &is_nil(&1.organizer_id))
+        Enum.each(events, &Takeaway.Organizers.claim_event(&1, organizer))
+        {:ok, length(events)}
+    end
   end
 
   defp repos do

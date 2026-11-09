@@ -33,10 +33,13 @@ defmodule Takeaway.SpeechCreator do
   `files` is a list of `{kind, client_name, source_path}` where kind is
   "plan" or "slides". Copies each file into the uploads dir and saves an
   artifact. Everything happens in one transaction.
+
+  With `opts[:organizer]` the speech joins that organizer's event (created on
+  first use), so only they can run it. Without one it joins a shared, unowned event.
   """
-  def create_speech(attrs, files \\ []) do
+  def create_speech(attrs, files \\ [], opts \\ []) do
     Repo.transaction(fn ->
-      event = default_event()
+      event = event_for(opts[:organizer])
 
       speech_attrs =
         attrs
@@ -89,13 +92,24 @@ defmodule Takeaway.SpeechCreator do
     })
   end
 
-  defp default_event do
-    case Events.list_events() do
-      [event | _] ->
+  defp event_for(nil) do
+    case Enum.find(Events.list_events(), &is_nil(&1.organizer_id)) do
+      nil ->
+        {:ok, event} = Events.create_event(%{name: "Open Talks"})
         event
 
+      event ->
+        event
+    end
+  end
+
+  defp event_for(organizer) do
+    case Events.list_events_for_organizer(organizer) do
       [] ->
-        {:ok, event} = Events.create_event(%{name: "Open Talks"})
+        {:ok, event} = Events.create_event(%{name: "Open Talks"}, organizer)
+        event
+
+      [event | _] ->
         event
     end
   end

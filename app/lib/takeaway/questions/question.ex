@@ -8,6 +8,8 @@ defmodule Takeaway.Questions.Question do
     field :slide_number, :integer
     field :group_id, :integer
     field :retracted_at, :utc_datetime
+    # set when the speaker responds (see `Takeaway.Questions.mark_answered_by_segments/1`)
+    field :answered_at, :utc_datetime
     # "typed" (submitted by an attendee) or "verbal" (detected in the audience transcript)
     field :source, :string, default: "typed"
 
