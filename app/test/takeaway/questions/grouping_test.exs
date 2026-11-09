@@ -73,7 +73,7 @@ defmodule Takeaway.Questions.GroupingTest do
     assert Repo.aggregate(from(g in Group, where: g.speech_id == ^ctx.speech.id), :count) == 0
   end
 
-  test "labelled 40-question sample has no false merges or missed groups", ctx do
+  test "labelled 42-question sample has no false merges or missed groups", ctx do
     sample =
       Path.expand("../../fixtures/question_grouping.json", __DIR__)
       |> File.read!()
@@ -94,12 +94,14 @@ defmodule Takeaway.Questions.GroupingTest do
     true_positives = Enum.count(pairs, &(&1 == {true, true}))
     false_positives = Enum.count(pairs, &(&1 == {false, true}))
     false_negatives = Enum.count(pairs, &(&1 == {true, false}))
-    assert length(sample) == 40
-    assert length(pairs) == 780
+    assert length(sample) == 42
+    assert length(pairs) == 861
     assert true_positives == 80
     assert false_positives == 0
     assert false_negatives == 0
-    assert Enum.map(Questions.list_top_groups(ctx.speech.id), & &1.count) == List.duplicate(5, 8)
+
+    assert Enum.map(Questions.list_top_groups(ctx.speech.id), & &1.count) ==
+             List.duplicate(5, 8) ++ [1, 1]
   end
 
   test "rejects stale and foreign search hits", ctx do

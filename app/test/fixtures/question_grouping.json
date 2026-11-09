@@ -158,5 +158,13 @@
   {
     "group": 8,
     "text": "How is storage volume backups handled?"
+  },
+  {
+    "group": 9,
+    "text": "How does database replica latency work?"
+  },
+  {
+    "group": 10,
+    "text": "Why is container image size so large?"
   }
 ]
