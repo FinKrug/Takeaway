@@ -24,7 +24,16 @@ spec:
               containerPort: 8080
           env:
             - name: TEAM_NAME
-              value: "__TEAM__"
+              value: "takeaway"
+            - name: PHX_HOST
+              value: "takeaway.cnh.radarhq.io"
+            # Phoenix signs cookies with this. It lives in a Secret created
+            # outside git (examples/agent-workflows/README.md): the repo is public.
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: app-credentials
+                  key: secret-key-base
           resources:
             requests:
               cpu: 100m

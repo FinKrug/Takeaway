@@ -6,3 +6,10 @@
 **/.env.*
 **/*.pem
 **/*.key
+# Phoenix build output: rebuilt inside the image.
+app/_build
+app/deps
+app/assets/node_modules
+app/priv/static/assets
+app/priv/static/cache_manifest.json
+app/test
