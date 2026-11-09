@@ -3,7 +3,7 @@ defmodule TakeawayWeb.SpeakerLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Takeaway.{Accounts, Events, Speeches, Transcripts}
+  alias Takeaway.{Accounts, Events, Questions, Speeches, Transcripts}
 
   setup %{conn: conn} do
     organizer = organizer_fixture()
@@ -41,6 +41,101 @@ defmodule TakeawayWeb.SpeakerLiveTest do
     render_hook(view, "audio_chunk", %{"data" => Base.encode64("pcm"), "offset_ms" => 1000})
     assert render(view) =~ "hello"
     assert [%{start_ms: 1000}, %{start_ms: 1800}] = Transcripts.list_segments(speech.id)
+  end
+
+  describe "question list" do
+    setup do
+      {:ok, attendee} = Accounts.create_anonymous_attendee()
+      %{attendee: attendee}
+    end
+
+    test "renders existing questions with offset, slide and source",
+         %{conn: conn, speech: speech, attendee: attendee} do
+      {:ok, typed} =
+        Questions.create_question(%{
+          text: "How does it scale?",
+          offset_ms: 65_000,
+          slide_number: 4,
+          speech_id: speech.id,
+          user_id: attendee.id
+        })
+
+      {:ok, verbal} =
+        Questions.create_question(%{
+          text: "What about latency?",
+          offset_ms: 2_000,
+          source: "verbal",
+          speech_id: speech.id
+        })
+
+      {:ok, retracted} = Questions.submit_question(speech, attendee, %{text: "Never mind"})
+      {:ok, _} = Questions.retract_question(retracted)
+
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+
+      typed_li = "#questions-#{typed.id}"
+      verbal_li = "#questions-#{verbal.id}"
+      assert has_element?(view, typed_li, "How does it scale?")
+      assert has_element?(view, typed_li, "01:05")
+      assert has_element?(view, typed_li, "Slide 4")
+      assert has_element?(view, typed_li, "Typed")
+      assert has_element?(view, verbal_li, "What about latency?")
+      assert has_element?(view, verbal_li, "00:02")
+      assert has_element?(view, verbal_li, "Spoken")
+      refute has_element?(view, verbal_li, "Slide")
+      refute has_element?(view, "#questions-#{retracted.id}")
+      # the empty-state row is still in the DOM; CSS (`only:`) hides it next to items
+      assert has_element?(view, "#questions > li:not(#questions-empty)")
+      # loaded questions don't animate in
+      refute has_element?(view, "#questions .motion-safe\\:animate-enter")
+    end
+
+    test "shows new questions live and removes retracted ones",
+         %{conn: conn, speech: speech, attendee: attendee} do
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+      assert has_element?(view, "#questions-empty", "No questions yet")
+      refute has_element?(view, "#questions > li:not(#questions-empty)")
+
+      {:ok, q} = Questions.submit_question(speech, attendee, %{text: "Live one?"})
+      assert has_element?(view, "#questions-#{q.id}", "Live one?")
+      assert has_element?(view, "#questions-#{q.id}.motion-safe\\:animate-enter")
+
+      # a repeated event updates rather than duplicates
+      send(view.pid, {:question_created, %{q | text: "Live one, edited?"}})
+      assert has_element?(view, "#questions-#{q.id}", "Live one, edited?")
+      assert render(view) |> String.split(~s(id="questions-#{q.id}")) |> length() == 2
+
+      {:ok, _} = Questions.retract_question_by(q.id, attendee)
+      refute has_element?(view, "#questions-#{q.id}")
+      refute has_element?(view, "#questions > li:not(#questions-empty)")
+      assert has_element?(view, "#questions-empty", "No questions yet")
+    end
+
+    test "verbal questions appear live and unrelated messages are ignored",
+         %{conn: conn, speech: speech} do
+      {:ok, view, _} = live(conn, ~p"/speeches/#{speech.id}/speak")
+
+      {:ok, q} =
+        Questions.create_question(%{
+          text: "Can you repeat that?",
+          offset_ms: 3_000,
+          source: "verbal",
+          speech_id: speech.id
+        })
+
+      Phoenix.PubSub.broadcast(
+        Takeaway.PubSub,
+        Questions.topic(speech.id),
+        {:question_created, q}
+      )
+
+      send(view.pid, {:question_answered, q})
+      send(view.pid, {:speech_started, speech})
+      send(view.pid, {:question_retracted, %{q | id: -1}})
+
+      # the view survived the unrelated messages and the unknown retract
+      assert has_element?(view, "#questions-#{q.id}", "Spoken")
+    end
   end
 
   test "unknown speech redirects", %{conn: conn} do
