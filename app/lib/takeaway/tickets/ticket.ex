@@ -11,9 +11,13 @@ defmodule Takeaway.Tickets.Ticket do
     timestamps(type: :utc_datetime)
   end
 
+  @doc """
+  Casts only the user-supplied `:code`. Ownership (`event_id`, `user_id`) is never
+  cast from attrs; set it on the struct before calling this (see `Takeaway.Tickets`).
+  """
   def changeset(ticket, attrs) do
     ticket
-    |> cast(attrs, [:code, :event_id, :user_id])
+    |> cast(attrs, [:code])
     |> validate_required([:event_id])
     |> Takeaway.JoinCode.put_code(:code, 8)
     |> update_change(:code, &String.upcase/1)
