@@ -8,19 +8,27 @@ defmodule TakeawayWeb.OrganizerController do
 
   def dashboard(conn, _params) do
     render(conn, :dashboard,
+      page_title: "Your events",
       events: Events.list_events_for_organizer(conn.assigns.current_organizer)
     )
   end
 
   def new_session(conn, _params),
-    do: render(conn, :log_in, form: Phoenix.Component.to_form(%{}, as: :organizer))
+    do:
+      render(conn, :log_in,
+        page_title: "Organizer log in",
+        form: Phoenix.Component.to_form(%{}, as: :organizer)
+      )
 
   def create_session(conn, %{"organizer" => %{"email" => email, "password" => password}}) do
     case Organizers.authenticate(email, password) do
       nil ->
         conn
         |> put_flash(:error, "Invalid email or password")
-        |> render(:log_in, form: Phoenix.Component.to_form(%{"email" => email}, as: :organizer))
+        |> render(:log_in,
+          page_title: "Organizer log in",
+          form: Phoenix.Component.to_form(%{"email" => email}, as: :organizer)
+        )
 
       organizer ->
         OrganizerAuth.log_in(conn, organizer)
@@ -32,6 +40,7 @@ defmodule TakeawayWeb.OrganizerController do
   def new_registration(conn, _params),
     do:
       render(conn, :register,
+        page_title: "Register as an organizer",
         form: Phoenix.Component.to_form(Organizers.change_registration(%Organizer{}))
       )
 
@@ -41,7 +50,10 @@ defmodule TakeawayWeb.OrganizerController do
         OrganizerAuth.log_in(conn, organizer)
 
       {:error, changeset} ->
-        render(conn, :register, form: Phoenix.Component.to_form(changeset))
+        render(conn, :register,
+          page_title: "Register as an organizer",
+          form: Phoenix.Component.to_form(changeset)
+        )
     end
   end
 

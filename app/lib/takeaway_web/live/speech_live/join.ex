@@ -501,9 +501,9 @@ defmodule TakeawayWeb.SpeechLive.Join do
             </p>
 
             <div :if={@summary.content["notes"] != []} id="my-notes">
-              <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+              <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
                 Your notes
-              </h3>
+              </h2>
 
               <div class="space-y-2">
                 <p
