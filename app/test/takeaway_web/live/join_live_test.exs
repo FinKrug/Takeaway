@@ -107,6 +107,17 @@ defmodule TakeawayWeb.JoinLiveTest do
       assert Notes.get_note_for(speech.id, a.id) == nil
     end
 
+    test "cookies off: the cookie check ends in the read-only state", %{speech: speech} do
+      path = ~p"/join/#{speech.join_code}"
+      assert {:error, {:redirect, %{to: to}}} = live(build_conn(), path)
+      assert to == path <> "?cookie_check=1"
+
+      {:ok, lv, _html} = live(build_conn(), to)
+      assert has_element?(lv, "#join-waiting")
+      assert has_element?(lv, "#notes-unavailable")
+      assert has_element?(lv, "#note-body[disabled]")
+    end
+
     test "without an attendee (cookies off, crawlers) the editor is disabled", %{speech: speech} do
       conn =
         build_conn()
